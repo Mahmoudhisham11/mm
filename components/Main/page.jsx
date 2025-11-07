@@ -880,9 +880,19 @@ function Main() {
     inv.clientName?.toLowerCase().includes(searchClient.toLowerCase())
   );
 
-  const totalSales = filteredInvoices.reduce((sum, i) => sum + (i.total || 0), 0);
-  const totalMasrofat = masrofat.reduce((sum, i) => sum + (i.masrof || 0), 0);
-  const finallyTotal = Number(totalSales) - Number(totalMasrofat)
+const today = new Date();
+const todayStr = today.toISOString().split('T')[0]; // "YYYY-MM-DD"
+
+const todaysMasrofat = masrofat.filter(i => {
+  // نفترض i.date شكل "YYYY-MM-DD"
+  return i.date === todayStr;
+});
+
+const totalMasrofat = todaysMasrofat.reduce((sum, i) => sum + (i.masrof || 0), 0);
+const totalSales = filteredInvoices.reduce((sum, i) => sum + (i.total || 0), 0);
+const finallyTotal = Number(totalSales) - Number(totalMasrofat);
+
+
   const employeeSales = {};
   filteredInvoices.forEach((invoice) => {
     if (invoice.employee && invoice.employee !== "غير محدد") {
@@ -1090,7 +1100,7 @@ function Main() {
             </div>
             <div className={styles.card}>
               <h4>إجمالي المبيعات</h4>
-              <p>{finallyTotal} جنيه</p>
+              <p>{filteredInvoices.length > 0 ? finallyTotal : 0} جنيه</p>
             </div>
             <div className={styles.card}>
               <h4>إجمالي المصروفات</h4>

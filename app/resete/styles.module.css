@@ -101,17 +101,18 @@
 }
 
 /* Print styles */
+/* Print styles for XP-Q371U thermal printer */
 @media print {
 
     .resete {
         background: none;
-        width: 100%;
-        height: 100vh; /* طول الصفحة بالكامل */
+        width: 80mm; /* عرض الطابعة */
+        min-height: auto; /* الطول يتحدد حسب المحتوى */
         margin: 0;
         padding: 0;
         display: flex;
         flex-direction: column;
-        justify-content: flex-start; /* يبدأ من الأعلى */
+        justify-content: flex-start;
         align-items: center;
     }
 
@@ -120,25 +121,25 @@
     }
 
     .invoice {
-        max-width: 384px;
         width: 100%;
+        max-width: 80mm; /* تأكد من عدم تجاوز العرض */
         padding: 5px;
         font-size: 12px;
         box-sizing: border-box;
         border: none;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start; /* العناصر قريبة من بعض */
     }
 
     .invoice h3 {
+        text-align: center;
         margin: 2px 0;
         font-size: 14px;
     }
 
     .invoice p {
-        margin: 1px 0; /* مسافات صغيرة بين العناصر */
+        margin: 1px 0;
         font-size: 12px;
+        line-height: 1.2;
+        word-wrap: break-word;
     }
 
     .invoice table {
@@ -150,7 +151,7 @@
 
     .invoice th, .invoice td {
         border: 1px solid black;
-        padding: 1px 3px;
+        padding: 2px 4px;
         text-align: right;
         font-size: 12px;
     }
