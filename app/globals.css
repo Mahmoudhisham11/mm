@@ -98,7 +98,7 @@ tfoot {
 }
 @media print {
   @page {
-    size: auto;
+    size: 80mm auto;
     margin: 0;
   }
   body {
