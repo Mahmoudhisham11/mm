@@ -100,16 +100,6 @@
 /* Print styles للطابعة الحرارية XP-Q371U */
 @media print {
 
-    @page {
-        size: 58mm auto; /* عرض ثابت حسب رول الطابعة، الطول حسب المحتوى */
-        margin: 0;
-    }
-
-    body {
-        margin: 0;
-        padding: 0;
-    }
-
     .resete {
         width: 58mm; /* نفس عرض الورقة */
         padding: 0;
