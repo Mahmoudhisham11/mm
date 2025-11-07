@@ -42,10 +42,10 @@ function Resete() {
     <div className={styles.resete}>
       <div className={styles.title}>
         <button onClick={() => router.push('/')} className={styles.btnBack}>رجوع</button>
-        <h2>Lacoste</h2>
-        <div className={styles.imageContainer}>
+        <h2>DOUBLE M</h2>
+        {/* <div className={styles.imageContainer}>
           <Image src={resetImage} fill style={{ objectFit: 'cover' }} alt="logo" />
-        </div>
+        </div> */}
       </div>
 
       {/* عرض الفاتورة على الشاشة */}
@@ -71,45 +71,22 @@ function Resete() {
                 <td>{item.code}</td>
                 <td>{item.name}</td>
                 <td>{item.quantity}</td>
-                <td>{item.total} $</td>
+                <td>{item.total} جنية</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={4}>الإجمالي: {invoice.total} $</td>
+              <td colSpan={4}>الإجمالي: {invoice.total} جنية</td>
             </tr>
           </tfoot>
         </table>
       </div>
 
       <div className={styles.text}>
-        <p>المدفوع: {invoice.total}$</p>
-        <p>المتبقي: 0.0</p>
         <p>عدد الاصناف:<span style={{border: '2px solid black', padding: "5px"}}>{invoice.length}</span></p>
-        <p>العنوان: الخصوص شارع القسم بجوار محل دلوعة</p>
-        <p style={{ textAlign: 'center', marginTop: '5px'}}>رقم الهاتف: 01113306404</p>
-        <p style={{ textAlign: 'center', marginTop: '5px'}}>رقم الكاش: 01095164379</p>
+        <p>العنوان: 1 جول جمال الف مسكن</p>
         <p style={{ textAlign: 'center', marginTop: '5px'}}>شكراً لتعاملكم معنا!</p>
-      </div>
-
-      {/* ✅ إضافة QR Code */}
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems:"center", gap: "15px", marginTop: '15px' }}>
-       <div className="">
-         <QRCodeCanvas 
-          value="https://www.instagram.com/la.coste6570?igsh=aWQxcDAxOW9xYjFz&utm_source=qr"
-          size={100}
-        />
-        <p>انستحرام</p>
-       </div>
-        <div className="">
-          <QRCodeCanvas 
-          value="https://www.tiktok.com/@lacoste_1_?_t=ZS-90RTngAvLku&_r=1"
-          size={100}
-        />
-        <p>تيك توك</p>
-        </div>
-        
       </div>
 
       <div className={styles.btn}>
