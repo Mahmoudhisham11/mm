@@ -101,8 +101,8 @@ tfoot {
     size: auto;
     margin: 0;
   }
-  body, html {
-        margin: 0;
-        padding: 0;
-    }
+  body {
+    padding: 0;
+    margin: 0;
+  }
 }
