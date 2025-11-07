@@ -112,33 +112,31 @@
     }
 
     .invoice {
-    width: 100%;
-    max-width: 58mm;
-    margin: 0 auto;
-    padding: 0; /* قلل البادينج */
-    box-sizing: border-box;
-    text-align: center;
-    height: auto; /* أهم حاجة */
-}
-
+        width: 100%;
+        max-width: 58mm;
+        margin: 0 auto;
+        padding: 0; /* قلل البادينج */
+        box-sizing: border-box;
+        text-align: center;
+        height: auto; /* الطول ديناميكي حسب المحتوى */
+    }
 
     .invoice h3, 
     .invoice p, 
     .invoice table, 
     .invoice tfoot td {
-        text-align: center !important; /* تأكيد التمركز */
+        text-align: center !important;
     }
 
     .invoice table {
         width: 100%;
-        margin: 2px 0;
         border-collapse: collapse;
     }
 
     .invoice th, .invoice td {
         border: 1px solid black;
         padding: 2px 4px;
-        font-size: 12px;
+        font-size: 12px; /* الخط ثابت مهما زاد المحتوى */
     }
 
     .invoice img, .invoice .barcode {
@@ -149,7 +147,7 @@
     }
 
     .btn, .btnBack {
-        display: none; /* إخفاء الأزرار أثناء الطباعة */
+        display: none;
     }
 
     .footer {
@@ -157,10 +155,5 @@
         font-size: 12px;
         margin-top: 5px;
     }
-    .btn{
-        display: none;
-    }
-    .btnBack {
-        display: none;
-    }
 }
+
