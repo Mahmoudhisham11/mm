@@ -465,7 +465,7 @@ function Products() {
             }
             /* حجم الباركود أكبر شوي */
             svg.barcode {
-              width: 40mm;
+              width: 35mm;
               height: 12mm;/* ✅ زودنا الارتفاع */
             }
             .barcode rect, .barcode path { shape-rendering: crispEdges; }
