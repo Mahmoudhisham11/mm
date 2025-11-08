@@ -422,15 +422,8 @@ const handlePrintLabel = (product) => {
         <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
         <style>
           @media print {
-            @page {
-              size: 40mm 30mm;
-              margin: 0;
-            }
-            body {
-              margin: 0;
-              padding: 0;
-              background: none;
-            }
+            @page { size: 40mm 30mm; margin: 0; }
+            body { margin:0; padding:0; }
           }
 
           body {
@@ -445,26 +438,34 @@ const handlePrintLabel = (product) => {
           }
 
           .label {
-            width: 38mm;
-            height: 28mm;
+            width: 100%;
+            height: 100%;
             padding: 1mm;
+            box-sizing: border-box;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             align-items: center;
+            overflow: hidden;
             text-align: center;
-            box-sizing: border-box;
           }
 
           .name {
-            font-size: 8pt;
+            font-size: 7.5pt; /* أصغر عشان ما يطلعش */
             font-weight: bold;
             line-height: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
           }
 
-          .content {
+          .price {
             font-size: 7pt;
-            line-height: 1.1;
+            line-height: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
           }
 
           svg.barcode {
@@ -476,9 +477,7 @@ const handlePrintLabel = (product) => {
       <body>
         <div class="label">
           <div class="name">${product.name ?? ''}</div>
-          <div class="content">
-            <div><strong>سعر:</strong> ${product.sellPrice ?? ''} EGP</div>
-          </div>
+          <div class="price">${product.sellPrice ?? ''} EGP</div>
           <svg id="barcode" class="barcode"></svg>
         </div>
 
@@ -501,6 +500,7 @@ const handlePrintLabel = (product) => {
   printWindow.document.write(htmlContent);
   printWindow.document.close();
 };
+
 
 
 
