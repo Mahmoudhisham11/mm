@@ -64,10 +64,12 @@ function SideBar({openSideBar, setOpenSideBar}) {
                 }
             </div>
             <div className={styles.logout}>
-                <Link href={'/settings'} className={styles.actionLinks}>
-                    <span><GoGear/></span>
+                {typeof window !== 'undefined' && localStorage.getItem('userName') === "mostafabeso10@gmail.com" && 
+                  <Link href={'/settings'} className={styles.actionLinks}>
+                    <span><TbReportSearch/></span>
                     <span>الاعدادات</span>
-                </Link>
+                </Link>  
+                }
                 <Link href={'/'} className={styles.actionLinks} onClick={handleLogout}>
                     <span><BiLogOutCircle/></span>
                     <span>تسجيل الخروج</span>

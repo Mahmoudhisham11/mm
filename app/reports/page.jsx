@@ -357,14 +357,18 @@ function Reports() {
 
   // return product (same logic you had, adapted to reports collection)
 // ✅ دالة إرجاع المنتج وتحديث كل شيء
- const handleReturnProduct = async (item, invoiceId) => {
+const handleReturnProduct = async (item, invoiceId) => {
   try {
     // البحث عن المنتج وتحديثه أو إنشاؤه
     let prodRef = null;
     if (item.originalProductId) {
       prodRef = doc(db, "lacosteProducts", item.originalProductId);
     } else {
-      const q = query(collection(db, "lacosteProducts"), where("code", "==", item.code), where("shop", "==", item.shop));
+      const q = query(
+        collection(db, "lacosteProducts"),
+        where("code", "==", item.code),
+        where("shop", "==", item.shop)
+      );
       const snapshot = await getDocs(q);
       if (!snapshot.empty) prodRef = snapshot.docs[0].ref;
     }
@@ -374,16 +378,21 @@ function Reports() {
       if (prodSnap.exists()) {
         const prodData = prodSnap.data();
 
-        let newColors = Array.isArray(prodData.colors) ? prodData.colors.map(c => {
-          return {
-            color: c.color,
-            sizes: Array.isArray(c.sizes) ? c.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) })) : undefined,
-            quantity: c.quantity !== undefined ? Number(c.quantity) : undefined
-          };
-        }) : null;
-        let newSizes = Array.isArray(prodData.sizes) ? prodData.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) })) : null;
+        let newColors = Array.isArray(prodData.colors)
+          ? prodData.colors.map(c => ({
+              color: c.color,
+              sizes: Array.isArray(c.sizes)
+                ? c.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) }))
+                : undefined,
+              quantity: c.quantity !== undefined ? Number(c.quantity) : undefined,
+            }))
+          : null;
 
-        // restore color+size quantities properly (similar to handleDeleteCartItem)
+        let newSizes = Array.isArray(prodData.sizes)
+          ? prodData.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) }))
+          : null;
+
+        // 🔹 المنتج له لون
         if (item.color) {
           const found = newColors && newColors.find(c => c.color === item.color);
           if (found) {
@@ -393,7 +402,7 @@ function Reports() {
                   const sizesCopy = c.sizes.map(s => ({ ...s }));
                   const target = sizesCopy.find(s => s.size === item.size);
                   if (target) {
-                    target.qty = Number(target.qty || 0) + Number(item.quantity || 0);
+                    target.qty += Number(item.quantity || 0);
                   } else {
                     sizesCopy.push({ size: item.size, qty: Number(item.quantity || 0) });
                   }
@@ -402,44 +411,47 @@ function Reports() {
                 return c;
               });
             } else if (!item.size && Array.isArray(found.sizes)) {
-              // append generic
-              newColors = newColors.map(c => {
-                if (c.color === item.color) {
-                  const sizesCopy = c.sizes.map(s => ({ ...s }));
-                  const generic = sizesCopy.find(s => s.size === "الكمية");
-                  if (generic) generic.qty = Number(generic.qty || 0) + Number(item.quantity || 0);
-                  else sizesCopy.push({ size: "الكمية", qty: Number(item.quantity || 0) });
-                  return { ...c, sizes: sizesCopy };
-                }
-                return c;
-              });
+              const sizesCopy = found.sizes.map(s => ({ ...s }));
+              const generic = sizesCopy.find(s => s.size === "الكمية");
+              if (generic) generic.qty += Number(item.quantity || 0);
+              else sizesCopy.push({ size: "الكمية", qty: Number(item.quantity || 0) });
+              newColors = newColors.map(c => c.color === item.color ? { ...c, sizes: sizesCopy } : c);
             } else {
-              newColors = newColors.map(c => c.color === item.color ? { ...c, quantity: Number(c.quantity || 0) + Number(item.quantity || 0) } : c);
+              newColors = newColors.map(c => c.color === item.color ? { ...c, quantity: (c.quantity || 0) + Number(item.quantity || 0) } : c);
             }
           } else {
-            const addObj = item.size ? { color: item.color, sizes: [{ size: item.size, qty: Number(item.quantity || 0) }] } : { color: item.color, quantity: Number(item.quantity || 0) };
+            const addObj = item.size
+              ? { color: item.color, sizes: [{ size: item.size, qty: Number(item.quantity || 0) }] }
+              : { color: item.color, quantity: Number(item.quantity || 0) };
             newColors = [...(newColors || []), addObj];
           }
         }
-
-        if (item.size && !item.color) {
+        // 🔹 المنتج له مقاس فقط
+        else if (item.size && !item.color) {
           const foundS = newSizes && newSizes.find(s => s.size === item.size);
-          if (foundS) newSizes = newSizes.map(s => s.size === item.size ? { ...s, qty: Number(s.qty || 0) + Number(item.quantity || 0) } : s);
+          if (foundS) newSizes = newSizes.map(s => s.size === item.size ? { ...s, qty: (s.qty || 0) + Number(item.quantity || 0) } : s);
           else newSizes = [...(newSizes || []), { size: item.size, qty: Number(item.quantity || 0) }];
         }
+        // 🔹 المنتج بسيط (كمية فقط)
+        else if (!item.color && !item.size) {
+          const newQty = (Number(prodData.quantity) || 0) + Number(item.quantity || 0);
+          await updateDoc(prodRef, { quantity: newQty });
+        }
 
-        const newTotalQty = computeNewTotalQuantity(newColors, newSizes, Number(prodData.quantity || 0));
-        const updateObj = { quantity: newTotalQty };
-        if (newColors) updateObj.colors = newColors.map(c => {
-          const o = { color: c.color };
-          if (Array.isArray(c.sizes)) o.sizes = c.sizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
-          if (c.quantity !== undefined) o.quantity = c.quantity;
-          return o;
-        });
-        if (newSizes) updateObj.sizes = newSizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
-        await updateDoc(prodRef, updateObj);
+        // تحديث باقي بيانات المنتج في المخزون إذا كان له لون أو مقاس
+        if (item.color || item.size) {
+          const newTotalQty = computeNewTotalQuantity(newColors, newSizes, Number(prodData.quantity || 0));
+          const updateObj = { quantity: newTotalQty };
+          if (newColors) updateObj.colors = newColors.map(c => {
+            const o = { color: c.color };
+            if (Array.isArray(c.sizes)) o.sizes = c.sizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
+            if (c.quantity !== undefined) o.quantity = c.quantity;
+            return o;
+          });
+          if (newSizes) updateObj.sizes = newSizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
+          await updateDoc(prodRef, updateObj);
+        }
       } else {
-        // المنتج مش موجود - نضيفه جديد
         const toAdd = {
           name: item.name,
           code: item.code || "",
@@ -454,7 +466,6 @@ function Reports() {
         await addDoc(collection(db, "lacosteProducts"), toAdd);
       }
     } else {
-      // المنتج مش موجود خالص - نضيفه
       const toAdd = {
         name: item.name,
         code: item.code || "",
@@ -469,6 +480,7 @@ function Reports() {
       await addDoc(collection(db, "lacosteProducts"), toAdd);
     }
 
+    // تحديث الفاتورة
     const invoiceRef = doc(db, "reports", invoiceId);
     const invoiceSnap = await getDoc(invoiceRef);
 
@@ -492,7 +504,6 @@ function Reports() {
 
         await updateDoc(invoiceRef, { cart: updatedCart, total: newTotal, profit: newProfit });
 
-        // 🔹 تحديث نفس الفاتورة في employeesReports
         const empQ = query(collection(db, "employeesReports"), where("date", "==", invoiceData.date), where("shop", "==", invoiceData.shop));
         const empSnap = await getDocs(empQ);
         empSnap.forEach(async (d) => {
@@ -503,7 +514,6 @@ function Reports() {
       } else {
         await deleteDoc(invoiceRef);
 
-        // 🔹 حذف نفس الفاتورة من employeesReports
         const empQ = query(collection(db, "employeesReports"), where("date", "==", invoiceData.date), where("shop", "==", invoiceData.shop));
         const empSnap = await getDocs(empQ);
         empSnap.forEach(async (d) => {
@@ -512,6 +522,16 @@ function Reports() {
 
         alert(`✅ تم إرجاع ${item.name} وحُذفت الفاتورة لأنها أصبحت فارغة.`);
       }
+
+      // 🔹 إضافة المصروف في collection masrofat
+      const masrofTotal = Number(item.sellPrice || 0) * Number(item.quantity || 0);
+      await addDoc(collection(db, "masrofat"), {
+        name: item.name,
+        masrof: masrofTotal,
+        reason: "فاتورة مرتجع",
+        shop: item.shop || shop
+      });
+
     } else {
       alert("⚠️ لم يتم العثور على الفاتورة!");
     }
@@ -521,6 +541,8 @@ function Reports() {
     alert("❌ حدث خطأ أثناء إرجاع المنتج");
   }
 };
+
+
 
 
 

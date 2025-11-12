@@ -13,7 +13,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("usersPermissions");
   const [users, setUsers] = useState([]);
-  const [employees, setEmployees] = useState([]); // ✅ الموظفين من Collection employees
+  const [employees, setEmployees] = useState([]);
   const [selectedUser, setSelectedUser] = useState("");
   const [permissions, setPermissions] = useState({
     phones: false,
@@ -26,7 +26,8 @@ export default function Settings() {
   });
 
   const [isSubscribed, setIsSubscribed] = useState(false);
-  const [employeePercentage, setEmployeePercentage] = useState(""); // ✅ نسبة الموظف الحالي
+  const [employeePercentage, setEmployeePercentage] = useState("");
+  const [currentUserName, setCurrentUserName] = useState("");
 
   useEffect(() => {
     const checkLock = async () => {
@@ -35,6 +36,8 @@ export default function Settings() {
         router.push("/");
         return;
       }
+      setCurrentUserName(userName); // ✅ حفظ اسم المستخدم الحالي
+
       const q = query(collection(db, "users"), where("userName", "==", userName));
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
@@ -55,16 +58,20 @@ export default function Settings() {
     checkLock();
   }, []);
 
+  // ✅ جلب المستخدمين بدون المستخدم الحالي
   const fetchUsers = async () => {
     const querySnapshot = await getDocs(collection(db, "users"));
-    const usersData = querySnapshot.docs.map((doc) => ({
+    const allUsers = querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
-    setUsers(usersData);
+
+    // استبعاد المستخدم اللي اسمه نفس الموجود في localStorage
+    const filteredUsers = allUsers.filter(u => u.userName !== currentUserName);
+
+    setUsers(filteredUsers);
   };
 
-  // ✅ جلب الموظفين من Collection employees
   const fetchEmployees = async () => {
     const querySnapshot = await getDocs(collection(db, "employees"));
     const empData = querySnapshot.docs.map((doc) => ({
@@ -75,9 +82,11 @@ export default function Settings() {
   };
 
   useEffect(() => {
-    fetchUsers();
-    fetchEmployees(); // ✅ تحميل الموظفين
-  }, []);
+    if (currentUserName) {
+      fetchUsers();
+      fetchEmployees();
+    }
+  }, [currentUserName]);
 
   useEffect(() => {
     const loadPermissions = async () => {
@@ -152,7 +161,6 @@ export default function Settings() {
     }
   };
 
-  // ✅ جلب نسبة الموظف من Collection employees
   const fetchEmployeePercentage = async (employeeId) => {
     if (!employeeId) {
       setEmployeePercentage("");
@@ -172,7 +180,6 @@ export default function Settings() {
     }
   };
 
-  // ✅ حفظ نسبة الموظف داخل Collection employees
   const handleSaveEmployeePercentage = async () => {
     if (!selectedUser) {
       alert("يرجى اختيار الموظف أولًا");
@@ -252,7 +259,6 @@ export default function Settings() {
                 </div>
                 <div className={styles.checkContent}>
                   {[
-                    { key: "phones", label: "صفحة الموبايلات" },
                     { key: "products", label: "صفحة المنتجات" },
                     { key: "masrofat", label: "صفحة المصاريف" },
                     { key: "employees", label: "صفحة الموظفين" },

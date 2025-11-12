@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 
 function Main() {
   const router = useRouter();
+  const [isHidden, setIsHidden] = useState(true);
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [employess, setEmployess] = useState([]);
@@ -118,6 +119,15 @@ function Main() {
     return () => unsubscribe();
   }, [shop]);
 
+  // دالة لتبديل حالة الإخفاء
+  const toggleHidden = () => {
+    setIsHidden(prev => {
+      const newState = !prev;
+      localStorage.setItem('hideFinance', newState);
+      return newState;
+    });
+  };
+
   // -------------------------
   // helpers: compute sums and safe update logic
   // -------------------------
@@ -200,139 +210,137 @@ function Main() {
     setShowVariantPopup(true);
   };
 
-  // core: add to cart & reserve stock — adjusted to new structure (color.sizes[].qty and product.sizes[].qty)
-  const addToCartAndReserve = async (product, options = {}) => {
-    // options: { color, size, quantity }
-    const qty = Number(options.quantity || 0);
-    if (qty <= 0) return;
+const addToCartAndReserve = async (product, options = {}) => {
+  // options: { color, size, quantity }
+  const qty = Number(options.quantity) || 1; // default quantity 1
+  if (qty <= 0) return;
 
-    // compute available
-    const available = getAvailableForVariant(product, options.color, options.size);
+  // حساب الكمية المتاحة
+  const available = getAvailableForVariant(product, options.color, options.size);
+  if (qty > available) {
+    alert(`الكمية المطلوبة (${qty}) أكبر من المتاح (${available})`);
+    return;
+  }
 
-    if (qty > available) {
-      alert(`الكمية المطلوبة (${qty}) أكبر من المتاح (${available})`);
-      return;
-    }
-
-    // prepare cart data (include variant info and originalProductId)
-    let cartData = {
-      name: product.name,
-      sellPrice: Number(customPrices[product.id]) || product.sellPrice,
-      productPrice: product.sellPrice,
-      quantity: qty,
-      type: product.type,
-      total: (Number(customPrices[product.id]) || product.sellPrice) * qty,
-      date: new Date(),
-      shop: shop,
-      color: options.color || "",
-      size: options.size || "",
-      originalProductId: product.id,
-      code: product.code || "",
-      buyPrice: product.buyPrice || 0,
-    };
-
-    // add to cart collection
-    await addDoc(collection(db, "cart"), cartData);
-
-    // reserve/decrement the lacosteProducts quantities immediately
-    try {
-      const prodRef = doc(db, "lacosteProducts", product.id);
-      const prodSnap = await getDoc(prodRef);
-      if (prodSnap.exists()) {
-        const prodData = prodSnap.data();
-
-        // clone arrays
-        let newColors = Array.isArray(prodData.colors) ? prodData.colors.map(c => ({
-          color: c.color,
-          // If sizes array exists, copy it normalizing qty property
-          sizes: Array.isArray(c.sizes) ? c.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) })) : undefined,
-          // keep legacy quantity if present
-          quantity: c.quantity !== undefined ? Number(c.quantity) : undefined
-        })) : null;
-
-        let newSizes = Array.isArray(prodData.sizes) ? prodData.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) })) : null;
-
-        // If both color and size provided -> decrement that size inside that color
-        if (options.color && options.size && newColors) {
-          newColors = newColors.map(c => {
-            if (c.color === options.color) {
-              // if color uses sizes array
-              if (Array.isArray(c.sizes)) {
-                const sizesCopy = c.sizes.map(s => ({ ...s }));
-                const target = sizesCopy.find(s => s.size === options.size);
-                if (target) {
-                  target.qty = Math.max(0, Number(target.qty || 0) - qty);
-                }
-                return { ...c, sizes: sizesCopy.filter(s => Number(s.qty || 0) > 0) };
-              } else {
-                // legacy: decrement color.quantity
-                return { ...c, quantity: Math.max(0, Number(c.quantity || 0) - qty) };
-              }
-            }
-            return c;
-          }).filter(c => {
-            // keep color if it still has sizes or positive quantity
-            if (Array.isArray(c.sizes)) return c.sizes.length > 0;
-            return Number(c.quantity || 0) > 0;
-          });
-        } else if (options.color && newColors) {
-          // only color provided: try to decrement from sizes total if exists, else from quantity
-          newColors = newColors.map(c => {
-            if (c.color === options.color) {
-              if (Array.isArray(c.sizes)) {
-                // reduce starting from first sizes (simple strategy) — but typical flow will provide size
-                const sizesCopy = c.sizes.map(s => ({ ...s }));
-                let remaining = qty;
-                for (let si = 0; si < sizesCopy.length && remaining > 0; si++) {
-                  const take = Math.min(Number(sizesCopy[si].qty || 0), remaining);
-                  sizesCopy[si].qty = Math.max(0, Number(sizesCopy[si].qty || 0) - take);
-                  remaining -= take;
-                }
-                return { ...c, sizes: sizesCopy.filter(s => Number(s.qty || 0) > 0) };
-              } else {
-                return { ...c, quantity: Math.max(0, Number(c.quantity || 0) - qty) };
-              }
-            }
-            return c;
-          }).filter(c => (Array.isArray(c.sizes) ? c.sizes.length > 0 : Number(c.quantity || 0) > 0));
-        }
-
-        // If only size at product root is provided
-        if (options.size && !options.color && newSizes) {
-          newSizes = newSizes.map(s => s.size === options.size ? { ...s, qty: Math.max(0, Number(s.qty || 0) - qty) } : s).filter(s => Number(s.qty || 0) > 0);
-        }
-
-        // compute new total quantity
-        const newTotalQty = computeNewTotalQuantity(newColors, newSizes, Number(prodData.quantity || 0));
-
-        if (newTotalQty <= 0) {
-          // delete product doc if no more stock
-          await deleteDoc(prodRef);
-        } else {
-          const updateObj = { quantity: newTotalQty };
-          if (newColors) updateObj.colors = newColors.map(c => {
-            // normalize to older schema for compatibility: if c.sizes exists keep it, else keep quantity
-            const obj = { color: c.color };
-            if (Array.isArray(c.sizes)) obj.sizes = c.sizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
-            if (c.quantity !== undefined) obj.quantity = c.quantity;
-            return obj;
-          });
-          if (newSizes) updateObj.sizes = newSizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
-          await updateDoc(prodRef, updateObj);
-        }
-      }
-    } catch (err) {
-      console.error("خطأ أثناء حجز المنتج في المخزون:", err);
-      alert("حدث خطأ أثناء حجز المنتج من المخزون");
-    }
-
-    // clear custom price for product
-    setCustomPrices(prev => {
-      const updated = { ...prev };
-      delete updated[product.id];
-      return updated;
-    });
+  // تحضير بيانات السلة
+  const cartData = {
+    name: product.name,
+    sellPrice: Number(customPrices[product.id]) || product.sellPrice,
+    productPrice: product.sellPrice,
+    quantity: qty,
+    type: product.type,
+    total: (Number(customPrices[product.id]) || product.sellPrice) * qty,
+    date: new Date(),
+    shop: shop,
+    color: options.color || "",
+    size: options.size || "",
+    originalProductId: product.id,
+    code: product.code || "",
+    buyPrice: product.buyPrice || 0,
   };
+
+  // إضافة للـ cart collection
+  await addDoc(collection(db, "cart"), cartData);
+
+  try {
+    const prodRef = doc(db, "lacosteProducts", product.id);
+    const prodSnap = await getDoc(prodRef);
+    if (!prodSnap.exists()) return;
+
+    const prodData = prodSnap.data();
+
+    let newColors = Array.isArray(prodData.colors)
+      ? prodData.colors.map(c => ({
+          color: c.color,
+          sizes: Array.isArray(c.sizes)
+            ? c.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) }))
+            : undefined,
+          quantity: c.quantity !== undefined ? Number(c.quantity) : undefined,
+        }))
+      : null;
+
+    let newSizes = Array.isArray(prodData.sizes)
+      ? prodData.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) }))
+      : null;
+
+    // المنتجات بألوان ومقاسات
+    if (options.color && options.size && newColors) {
+      newColors = newColors.map(c => {
+        if (c.color === options.color) {
+          if (Array.isArray(c.sizes)) {
+            const sizesCopy = c.sizes.map(s => ({ ...s }));
+            const target = sizesCopy.find(s => s.size === options.size);
+            if (target) target.qty = Math.max(0, Number(target.qty || 0) - qty);
+            return { ...c, sizes: sizesCopy.filter(s => Number(s.qty || 0) > 0) };
+          } else {
+            return { ...c, quantity: Math.max(0, Number(c.quantity || 0) - qty) };
+          }
+        }
+        return c;
+      }).filter(c => (Array.isArray(c.sizes) ? c.sizes.length > 0 : Number(c.quantity || 0) > 0));
+    }
+    // المنتجات بألوان فقط
+    else if (options.color && newColors) {
+      newColors = newColors.map(c => {
+        if (c.color === options.color) {
+          if (Array.isArray(c.sizes)) {
+            let sizesCopy = c.sizes.map(s => ({ ...s }));
+            let remaining = qty;
+            for (let si = 0; si < sizesCopy.length && remaining > 0; si++) {
+              const take = Math.min(Number(sizesCopy[si].qty || 0), remaining);
+              sizesCopy[si].qty = Math.max(0, Number(sizesCopy[si].qty || 0) - take);
+              remaining -= take;
+            }
+            return { ...c, sizes: sizesCopy.filter(s => Number(s.qty || 0) > 0) };
+          } else {
+            return { ...c, quantity: Math.max(0, Number(c.quantity || 0) - qty) };
+          }
+        }
+        return c;
+      }).filter(c => (Array.isArray(c.sizes) ? c.sizes.length > 0 : Number(c.quantity || 0) > 0));
+    }
+    // المنتجات بمقاسات فقط
+    else if (options.size && !options.color && newSizes) {
+      newSizes = newSizes
+        .map(s => (s.size === options.size ? { ...s, qty: Math.max(0, Number(s.qty || 0) - qty) } : s))
+        .filter(s => Number(s.qty || 0) > 0);
+    }
+    // المنتجات البسيطة بدون ألوان أو مقاسات
+    else if (!options.color && !options.size && prodData.quantity !== undefined) {
+      const newQty = Math.max(0, Number(prodData.quantity) - qty);
+      if (newQty <= 0) await deleteDoc(prodRef);
+      else await updateDoc(prodRef, { quantity: newQty });
+      return; // منع تكرار المعالجة
+    }
+
+    // تحديث الكمية الكلية للمنتج
+    const newTotalQty = computeNewTotalQuantity(newColors, newSizes, Number(prodData.quantity || 0));
+    if (newTotalQty <= 0) await deleteDoc(prodRef);
+    else {
+      const updateObj = { quantity: newTotalQty };
+      if (newColors) updateObj.colors = newColors.map(c => {
+        const obj = { color: c.color };
+        if (Array.isArray(c.sizes)) obj.sizes = c.sizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
+        if (c.quantity !== undefined) obj.quantity = c.quantity;
+        return obj;
+      });
+      if (newSizes) updateObj.sizes = newSizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
+      await updateDoc(prodRef, updateObj);
+    }
+  } catch (err) {
+    console.error("خطأ أثناء حجز المنتج في المخزون:", err);
+    alert("حدث خطأ أثناء حجز المنتج من المخزون");
+  }
+
+  // مسح أي سعر مخصص
+  setCustomPrices(prev => {
+    const updated = { ...prev };
+    delete updated[product.id];
+    return updated;
+  });
+};
+
+
 
   // original handleAddToCart replaced by openVariant logic:
   const handleAddToCart = async (product) => {
@@ -647,25 +655,26 @@ function Main() {
   const otherCount = products.filter(p => p.type !== "phone").length;
 
   // when typing code: if product has variants -> open variant popup else add direct
-  useEffect(() => {
+useEffect(() => {
   if (!searchCode || !shop) return;
 
   const timer = setTimeout(async () => {
     const foundProduct = products.find(p => p.code?.toString() === searchCode.trim());
-    if (foundProduct) {
-      if ((foundProduct.colors && foundProduct.colors.length > 0) || (foundProduct.sizes && foundProduct.sizes.length > 0)) {
-        openVariantForProduct(foundProduct);
-      } else {
-        await addToCartAndReserve(foundProduct, { quantity: 1 });
-      }
+    if (!foundProduct) return;
 
-      setSearchCode("");
+    if ((foundProduct.colors && foundProduct.colors.length > 0) || (foundProduct.sizes && foundProduct.sizes.length > 0)) {
+      openVariantForProduct(foundProduct);
+    } else {
+      // تحقق لو المنتج البسيط موجود بالفعل في الكارت
+      const alreadyInCart = cart.some(item => item.originalProductId === foundProduct.id && !item.color && !item.size);
+      if (!alreadyInCart) await addToCartAndReserve(foundProduct, { quantity: 1 });
     }
+
+    setSearchCode(""); // مسح البحث بعد الاختيار
   }, 400);
 
   return () => clearTimeout(timer);
-}, [searchCode, products, cart, shop]);
-
+}, [searchCode, products, shop]);
 
   const handleApplyDiscount = () => {
     const numeric = Number(discountInput) || 0;
@@ -934,25 +943,8 @@ const handleCloseDay = async () => {
     inv.clientName?.toLowerCase().includes(searchClient.toLowerCase())
   );
 
-// 📅 إنشاء تاريخ اليوم بنفس الصيغة اللي بنخزنها في Firebase
-const today = new Date();
-const day = today.getDate().toString().padStart(2, '0');
-const month = (today.getMonth() + 1).toString().padStart(2, '0');
-const year = today.getFullYear();
-const todayStr = `${day}/${month}/${year}`;
-
-// ✅ فلترة المصروفات الخاصة بتاريخ اليوم فقط
-const todaysMasrofat = masrofat.filter(i => i.date === todayStr);
-
-// ✅ حساب إجمالي المصروفات بتاعة اليوم
-const totalMasrofat = todaysMasrofat.reduce((sum, i) => sum + Number(i.masrof || 0), 0);
-
-// ✅ عرض النتائج في الكونسول (اختياري للتأكد)
-console.log("📅 تاريخ اليوم:", todayStr);
-console.log("🧾 المصروفات النهارده:", todaysMasrofat);
-console.log("💰 إجمالي مصاريف النهارده:", totalMasrofat);
-
-
+// ✅ حساب إجمالي كل المصروفات
+const totalMasrofat = masrofat.reduce((sum, i) => sum + Number(i.masrof || 0), 0);
 
 const totalSales = filteredInvoices.reduce((sum, i) => sum + (i.total || 0), 0);
 const finallyTotal = Number(totalSales) - Number(totalMasrofat);
@@ -968,14 +960,18 @@ const finallyTotal = Number(totalSales) - Number(totalMasrofat);
     Object.entries(employeeSales).sort((a, b) => b[1] - a[1])[0]?.[0] || "لا يوجد موظفين";
 
   // return product (refund) -> restore color/size quantities to lacosteProducts
-  const handleReturnProduct = async (item, invoiceId) => {
+const handleReturnProduct = async (item, invoiceId) => {
   try {
     // البحث عن المنتج وتحديثه أو إنشاؤه
     let prodRef = null;
     if (item.originalProductId) {
       prodRef = doc(db, "lacosteProducts", item.originalProductId);
     } else {
-      const q = query(collection(db, "lacosteProducts"), where("code", "==", item.code), where("shop", "==", item.shop));
+      const q = query(
+        collection(db, "lacosteProducts"),
+        where("code", "==", item.code),
+        where("shop", "==", item.shop)
+      );
       const snapshot = await getDocs(q);
       if (!snapshot.empty) prodRef = snapshot.docs[0].ref;
     }
@@ -985,16 +981,21 @@ const finallyTotal = Number(totalSales) - Number(totalMasrofat);
       if (prodSnap.exists()) {
         const prodData = prodSnap.data();
 
-        let newColors = Array.isArray(prodData.colors) ? prodData.colors.map(c => {
-          return {
-            color: c.color,
-            sizes: Array.isArray(c.sizes) ? c.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) })) : undefined,
-            quantity: c.quantity !== undefined ? Number(c.quantity) : undefined
-          };
-        }) : null;
-        let newSizes = Array.isArray(prodData.sizes) ? prodData.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) })) : null;
+        let newColors = Array.isArray(prodData.colors)
+          ? prodData.colors.map(c => ({
+              color: c.color,
+              sizes: Array.isArray(c.sizes)
+                ? c.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) }))
+                : undefined,
+              quantity: c.quantity !== undefined ? Number(c.quantity) : undefined,
+            }))
+          : null;
 
-        // restore color+size quantities properly (similar to handleDeleteCartItem)
+        let newSizes = Array.isArray(prodData.sizes)
+          ? prodData.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) }))
+          : null;
+
+        // 🔹 المنتج له لون
         if (item.color) {
           const found = newColors && newColors.find(c => c.color === item.color);
           if (found) {
@@ -1004,7 +1005,7 @@ const finallyTotal = Number(totalSales) - Number(totalMasrofat);
                   const sizesCopy = c.sizes.map(s => ({ ...s }));
                   const target = sizesCopy.find(s => s.size === item.size);
                   if (target) {
-                    target.qty = Number(target.qty || 0) + Number(item.quantity || 0);
+                    target.qty += Number(item.quantity || 0);
                   } else {
                     sizesCopy.push({ size: item.size, qty: Number(item.quantity || 0) });
                   }
@@ -1013,42 +1014,46 @@ const finallyTotal = Number(totalSales) - Number(totalMasrofat);
                 return c;
               });
             } else if (!item.size && Array.isArray(found.sizes)) {
-              // append generic
-              newColors = newColors.map(c => {
-                if (c.color === item.color) {
-                  const sizesCopy = c.sizes.map(s => ({ ...s }));
-                  const generic = sizesCopy.find(s => s.size === "الكمية");
-                  if (generic) generic.qty = Number(generic.qty || 0) + Number(item.quantity || 0);
-                  else sizesCopy.push({ size: "الكمية", qty: Number(item.quantity || 0) });
-                  return { ...c, sizes: sizesCopy };
-                }
-                return c;
-              });
+              const sizesCopy = found.sizes.map(s => ({ ...s }));
+              const generic = sizesCopy.find(s => s.size === "الكمية");
+              if (generic) generic.qty += Number(item.quantity || 0);
+              else sizesCopy.push({ size: "الكمية", qty: Number(item.quantity || 0) });
+              newColors = newColors.map(c => c.color === item.color ? { ...c, sizes: sizesCopy } : c);
             } else {
-              newColors = newColors.map(c => c.color === item.color ? { ...c, quantity: Number(c.quantity || 0) + Number(item.quantity || 0) } : c);
+              newColors = newColors.map(c => c.color === item.color ? { ...c, quantity: (c.quantity || 0) + Number(item.quantity || 0) } : c);
             }
           } else {
-            const addObj = item.size ? { color: item.color, sizes: [{ size: item.size, qty: Number(item.quantity || 0) }] } : { color: item.color, quantity: Number(item.quantity || 0) };
+            const addObj = item.size
+              ? { color: item.color, sizes: [{ size: item.size, qty: Number(item.quantity || 0) }] }
+              : { color: item.color, quantity: Number(item.quantity || 0) };
             newColors = [...(newColors || []), addObj];
           }
         }
-
-        if (item.size && !item.color) {
+        // 🔹 المنتج له مقاس فقط
+        else if (item.size && !item.color) {
           const foundS = newSizes && newSizes.find(s => s.size === item.size);
-          if (foundS) newSizes = newSizes.map(s => s.size === item.size ? { ...s, qty: Number(s.qty || 0) + Number(item.quantity || 0) } : s);
+          if (foundS) newSizes = newSizes.map(s => s.size === item.size ? { ...s, qty: (s.qty || 0) + Number(item.quantity || 0) } : s);
           else newSizes = [...(newSizes || []), { size: item.size, qty: Number(item.quantity || 0) }];
         }
+        // 🔹 المنتج بسيط (كمية فقط)
+        else if (!item.color && !item.size) {
+          const newQty = (Number(prodData.quantity) || 0) + Number(item.quantity || 0);
+          await updateDoc(prodRef, { quantity: newQty });
+        }
 
-        const newTotalQty = computeNewTotalQuantity(newColors, newSizes, Number(prodData.quantity || 0));
-        const updateObj = { quantity: newTotalQty };
-        if (newColors) updateObj.colors = newColors.map(c => {
-          const o = { color: c.color };
-          if (Array.isArray(c.sizes)) o.sizes = c.sizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
-          if (c.quantity !== undefined) o.quantity = c.quantity;
-          return o;
-        });
-        if (newSizes) updateObj.sizes = newSizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
-        await updateDoc(prodRef, updateObj);
+        // تحديث باقي بيانات المنتج في المخزون إذا كان له لون أو مقاس
+        if (item.color || item.size) {
+          const newTotalQty = computeNewTotalQuantity(newColors, newSizes, Number(prodData.quantity || 0));
+          const updateObj = { quantity: newTotalQty };
+          if (newColors) updateObj.colors = newColors.map(c => {
+            const o = { color: c.color };
+            if (Array.isArray(c.sizes)) o.sizes = c.sizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
+            if (c.quantity !== undefined) o.quantity = c.quantity;
+            return o;
+          });
+          if (newSizes) updateObj.sizes = newSizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
+          await updateDoc(prodRef, updateObj);
+        }
       } else {
         // المنتج مش موجود - نضيفه جديد
         const toAdd = {
@@ -1127,12 +1132,12 @@ const finallyTotal = Number(totalSales) - Number(totalMasrofat);
     } else {
       alert("⚠️ لم يتم العثور على الفاتورة!");
     }
-
   } catch (error) {
     console.error("خطأ أثناء الإرجاع:", error);
     alert("❌ حدث خطأ أثناء إرجاع المنتج");
   }
 };
+
 
 
   return (
@@ -1145,6 +1150,9 @@ const finallyTotal = Number(totalSales) - Number(totalMasrofat);
             <button onClick={() => setOpenSideBar(true)}><FaBars /></button>
             <h3>المبيعات اليومية</h3>
           </div>
+            <button onClick={toggleHidden} className={styles.eye} style={{marginTop: '15px'}}>
+            {isHidden ? "👁️ إظهار الأرقام" : "🙈 إخفاء الأرقام"}
+          </button>
             <div className={styles.searchBox}>
             <IoMdSearch />
             <input
@@ -1161,19 +1169,23 @@ const finallyTotal = Number(totalSales) - Number(totalMasrofat);
           <div className={styles.cardsContainer}>
             <div className={styles.card}>
               <h4>عدد الفواتير</h4>
-              <p>{filteredInvoices.length}</p>
+              <p>{isHidden? '****' : filteredInvoices.length}</p>
             </div>
             <div className={styles.card}>
               <h4>إجمالي المبيعات</h4>
-              <p>{filteredInvoices.length > 0 ? finallyTotal : 0} جنيه</p>
+              <p>{isHidden? '****' : filteredInvoices.length > 0 ? totalSales : 0} جنيه</p>
+            </div>
+            <div className={styles.card}>
+              <h4>صافي المبيع </h4>
+              <p>{isHidden? '****' : filteredInvoices.length > 0 ? finallyTotal : 0} جنيه</p>
             </div>
             <div className={styles.card}>
               <h4>إجمالي المصروفات</h4>
-              <p>{totalMasrofat} جنيه</p>
+              <p>{isHidden? '****' : totalMasrofat} جنيه</p>
             </div>
             <div className={styles.card}>
               <h4>أنشط موظف</h4>
-              <p>{topEmployee}</p>
+              <p>{isHidden? '****' : topEmployee}</p>
             </div>
           </div>
           
@@ -1201,7 +1213,7 @@ const finallyTotal = Number(totalSales) - Number(totalMasrofat);
                     <td>{invoice.clientName || "بدون اسم"}</td>
                     <td>{invoice.phone || "-"}</td>
                     <td>{invoice.employee || "غير محدد"}</td>
-                    <td>{invoice.total} جنيه</td>
+                    <td>{isHidden? '****' : invoice.total} جنيه</td>
                     <td>{formatDate(invoice.date)}</td>
                   </tr>
                 ))} 
@@ -1226,9 +1238,9 @@ const finallyTotal = Number(totalSales) - Number(totalMasrofat);
               <p><strong>🕒 التاريخ:</strong> {formatDate(selectedInvoice.date)}</p>
 
               {/* ✅ الخصم، ملاحظات الخصم، الربح قبل الإجمالي */}
-              {selectedInvoice.profit !== undefined && (
+              {/* {selectedInvoice.profit !== undefined && (
                 <p><strong>📈 ربح الفاتورة:</strong> {selectedInvoice.profit} جنيه</p>
-              )}
+              )} */}
               {selectedInvoice.discount > 0 && (
                 <p>
                   <strong>🔖 الخصم:</strong> {selectedInvoice.discount} جنيه
@@ -1334,7 +1346,7 @@ const finallyTotal = Number(totalSales) - Number(totalMasrofat);
 
               {/* NEW: show profit and discount above total */}
               <div style={{ marginBottom: 8 }}>
-                <div><strong>📈 ربح الفاتورة:</strong> {profit} جنيه</div>
+                {/* <div><strong>📈 ربح الفاتورة:</strong> {profit} جنيه</div> */}
                 <div><strong>🔖 الخصم:</strong> {appliedDiscount} جنيه {appliedDiscount > 0 ? `(ملاحظة: ${discountNotes || '-'})` : null}</div>
               </div>
 
