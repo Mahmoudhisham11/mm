@@ -26,6 +26,39 @@ export default function Profit() {
   const [payWithdrawId, setPayWithdrawId] = useState(null);
   const [isHidden, setIsHidden] = useState(true);
 
+  // تحويل الأرقام العربية إلى إنجليزية
+  const arabicToEnglishNumbers = (str) => {
+    if (!str) return str;
+    const map = { '٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9' };
+    return str.replace(/[٠-٩]/g, d => map[d]);
+  };
+
+  // تعديل parseDate لدعم التواريخ العربية و Timestamp
+  const parseDate = (val) => {
+    if (!val) return null;
+    if (val instanceof Date) return val;
+    if (val?.toDate) return val.toDate();
+    if (val?.seconds) return new Date(val.seconds * 1000);
+
+    if (typeof val === "string") {
+      val = arabicToEnglishNumbers(val);
+      const isoMatch = val.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+      if (isoMatch) {
+        const [, y, m, d] = isoMatch;
+        return new Date(Number(y), Number(m) - 1, Number(d));
+      }
+      const dmyMatch = val.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (dmyMatch) {
+        const [, d, m, y] = dmyMatch;
+        return new Date(Number(y), Number(m) - 1, Number(d));
+      }
+
+      const tryDate = new Date(val);
+      if (!isNaN(tryDate)) return tryDate;
+    }
+    return null;
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setShop(localStorage.getItem('shop'));
@@ -40,33 +73,6 @@ export default function Profit() {
       localStorage.setItem('hideFinance', newState);
       return newState;
     });
-  };
-
-  const parseDate = (val) => {
-    if (!val) return null;
-    if (val instanceof Date) return val;
-    if (val?.toDate) return val.toDate();
-    if (val?.seconds) return new Date(val.seconds * 1000);
-    if (typeof val === "number") return new Date(val);
-
-    if (typeof val === "string") {
-      const isoMatch = val.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-      if (isoMatch) {
-        const [, y, m, d] = isoMatch;
-        return new Date(Number(y), Number(m) - 1, Number(d));
-      }
-
-      const dmyMatch = val.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-      if (dmyMatch) {
-        const [, d, m, y] = dmyMatch;
-        return new Date(Number(y), Number(m) - 1, Number(d));
-      }
-
-      const tryDate = new Date(val);
-      if (!isNaN(tryDate)) return tryDate;
-    }
-
-    return null;
   };
 
   const fetchData = async () => {
@@ -84,7 +90,7 @@ export default function Profit() {
 
   useEffect(() => { fetchData(); }, [shop]);
 
-  // 🔹 تحديث القيم بناءً على التاريخ
+  // حساب الارصدة والربح بشكل ديناميكي
   useEffect(() => {
     if (!shop) return;
 
@@ -120,7 +126,6 @@ export default function Profit() {
       const remaining = (w.amount || 0) - (w.paid || 0);
       remainingCash -= remaining;
     });
-
     setCashTotal(remainingCash);
 
     // حساب الربح
@@ -129,26 +134,26 @@ export default function Profit() {
       return sum + r.cart.reduce((s, item) => s + ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0), 0);
     }, 0);
 
-    // طرح السحوبات من الربح
     let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
     filteredWithdraws.forEach(w => {
       const remaining = (w.amount || 0) - (w.paid || 0);
       remainingProfit -= remaining;
-      if (w.reason === "ربح مصطفى") mostafaSum += remaining;
-      if (w.reason === "ربح ميدو") midoSum += remaining;
+      if (w.person === "مصطفى") mostafaSum += remaining;
+      if (w.person === "ميدو") midoSum += remaining;
+      if (w.person === "دبل M") doubleMSum += remaining;
     });
 
-    // لو فيه returnedProfit
     const returnedProfit = filteredDaily.reduce((sum, d) => sum + (d.returnedProfit || 0), 0);
-    if (returnedProfit > 0) remainingProfit -= returnedProfit;
+    remainingProfit -= returnedProfit;
 
     setProfit(remainingProfit);
     setMostafaBalance(mostafaSum);
     setMidoBalance(midoSum);
     setDoubleMBalance(doubleMSum);
+
   }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop]);
 
-  // 🔹 العمليات الأخرى (سحب، حذف، سداد)
+  // عمليات السحب والدفع
   const handleWithdraw = async () => {
     if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
     const amount = Number(withdrawAmount);
@@ -169,29 +174,16 @@ export default function Profit() {
       { id: docRef.id, person: withdrawPerson, amount, date: new Date().toLocaleDateString("ar-EG"), createdAt: Timestamp.now(), paid: 0 },
     ]);
 
-    setCashTotal( prev => prev - amount);
-    setProfit(prev => prev - amount);
-    if (withdrawPerson === "مصطفى") setMostafaBalance(prev => prev + amount);
-    if (withdrawPerson === "ميدو") setMidoBalance(prev => prev + amount);
-    if (withdrawPerson === "دبل M") setDoubleMBalance(prev => prev + amount);
-
     setWithdrawPerson("");
     setWithdrawAmount("");
     setShowPopup(false);
   };
 
-  const handleDeleteWithdraw = async (id, amount, person, paid) => {
+  const handleDeleteWithdraw = async (id) => {
     if (!id) return;
     try {
       await deleteDoc(doc(db, "withdraws", id));
       setWithdraws(prev => prev.filter(w => w.id !== id));
-
-      const remaining = (amount || 0) - (paid || 0);
-      setCashTotal(prev => prev + remaining);
-      setProfit(prev => prev + remaining);
-      if (person === "مصطفى") setMostafaBalance(prev => prev - remaining);
-      if (person === "ميدو") setMidoBalance(prev => prev - remaining);
-      if (person === "دبل M") setDoubleMBalance(prev => prev - remaining);
     } catch (error) {
       console.error("خطأ أثناء الحذف:", error);
     }
@@ -218,11 +210,6 @@ export default function Profit() {
     await updateDoc(withdrawRef, { paid: (withdraw.paid || 0) + amount });
 
     setWithdraws(prev => prev.map(w => w.id === payWithdrawId ? { ...w, paid: (w.paid || 0) + amount } : w));
-    setCashTotal(prev => prev + amount);
-    setProfit(prev => prev + amount);
-    if (payPerson === "مصطفى") setMostafaBalance(prev => prev - amount);
-    if (payPerson === "ميدو") setMidoBalance(prev => prev - amount);
-    if (payPerson === "دبل M") setDoubleMBalance(prev => prev - amount);
     setShowPayPopup(false);
   };
 
@@ -273,20 +260,14 @@ export default function Profit() {
               </tr>
             </thead>
             <tbody>
-              {withdraws.filter(w => {
-                const wDate = parseDate(w.date || w.createdAt);
-                const from = parseDate(dateFrom) || new Date("1970-01-01");
-                const to = parseDate(dateTo || dateFrom) || new Date();
-                to.setHours(23, 59, 59, 999);
-                return wDate && wDate >= from && wDate <= to;
-              }).map(w => (
+              {withdraws.map(w => (
                 <tr key={w.id}>
                   <td>{w.person}</td>
                   <td>{isHidden ? "*****" : w.amount}</td>
                   <td>{isHidden ? "*****" : (w.paid || 0)}</td>
                   <td>{isHidden ? "*****" : (w.amount - (w.paid || 0))}</td>
                   <td>{w.createdAt?.seconds ? new Date(w.createdAt.seconds * 1000).toLocaleDateString("ar-EG") : w.date || "—"}</td>
-                  <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.delBtn} onClick={() => handleDeleteWithdraw(w.id, w.amount, w.person, w.paid || 0)}>حذف</button>}</td>
+                  <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.delBtn} onClick={() => handleDeleteWithdraw(w.id)}>حذف</button>}</td>
                   <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.payBtn} onClick={() => handleOpenPay(w)}>سداد</button>}</td>
                 </tr>
               ))}
@@ -326,7 +307,6 @@ export default function Profit() {
             </div>
           </div>
         )}
-
       </div>
     </div>
   );
