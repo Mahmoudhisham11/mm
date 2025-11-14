@@ -113,9 +113,8 @@ export default function Profit() {
       return wDate && wDate >= from && wDate <= to;
     });
 
-    // حساب الخزنة
-    const totalMasrofat = filteredDaily.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
-    const totalCash = filteredDaily.reduce((sum, d) => sum + (d.totalSales || 0), 0);
+    let totalMasrofat = filteredDaily.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
+    let totalCash = filteredDaily.reduce((sum, d) => sum + (d.totalSales || 0), 0);
     let remainingCash = totalCash - totalMasrofat;
 
     filteredWithdraws.forEach(w => {
@@ -124,7 +123,6 @@ export default function Profit() {
     });
     setCashTotal(remainingCash);
 
-    // حساب الربح
     let remainingProfit = filteredReports.reduce((sum, r) => {
       if (!r.cart || !Array.isArray(r.cart)) return sum;
       return sum + r.cart.reduce((s, item) => s + ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0), 0);
@@ -149,7 +147,7 @@ export default function Profit() {
 
   }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop]);
 
-  // عمليات السحب
+  // عمليات السحب والدفع
   const handleWithdraw = async () => {
     if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
     const amount = Number(withdrawAmount);
@@ -170,6 +168,13 @@ export default function Profit() {
       { id: docRef.id, person: withdrawPerson, amount, date: new Date().toLocaleDateString("ar-EG"), createdAt: Timestamp.now(), paid: 0 },
     ]);
 
+    // خصم مباشر من الرصيد والربح ورصيد الشخص
+    setCashTotal(prev => prev - amount);
+    setProfit(prev => prev - amount);
+    if (withdrawPerson === "مصطفى") setMostafaBalance(prev => prev + amount);
+    if (withdrawPerson === "ميدو") setMidoBalance(prev => prev + amount);
+    if (withdrawPerson === "دبل M") setDoubleMBalance(prev => prev + amount);
+
     setWithdrawPerson("");
     setWithdrawAmount("");
     setShowPopup(false);
@@ -177,10 +182,19 @@ export default function Profit() {
 
   const handleDeleteWithdraw = async (id) => {
     if (!id) return;
+    const withdraw = withdraws.find(w => w.id === id);
+    if (!withdraw) return;
+
     try {
-      const withdraw = withdraws.find(w => w.id === id);
       await deleteDoc(doc(db, "withdraws", id));
       setWithdraws(prev => prev.filter(w => w.id !== id));
+
+      const remaining = withdraw.amount - (withdraw.paid || 0);
+      setCashTotal(prev => prev + remaining);
+      setProfit(prev => prev + remaining);
+      if (withdraw.person === "مصطفى") setMostafaBalance(prev => prev - remaining);
+      if (withdraw.person === "ميدو") setMidoBalance(prev => prev - remaining);
+      if (withdraw.person === "دبل M") setDoubleMBalance(prev => prev - remaining);
     } catch (error) {
       console.error("خطأ أثناء الحذف:", error);
     }
@@ -207,6 +221,13 @@ export default function Profit() {
     await updateDoc(withdrawRef, { paid: (withdraw.paid || 0) + amount });
 
     setWithdraws(prev => prev.map(w => w.id === payWithdrawId ? { ...w, paid: (w.paid || 0) + amount } : w));
+
+    // ارجاع المبلغ للخزنة وخصم من رصيد الشخص
+    setCashTotal(prev => prev + amount);
+    if (payPerson === "مصطفى") setMostafaBalance(prev => prev - amount);
+    if (payPerson === "ميدو") setMidoBalance(prev => prev - amount);
+    if (payPerson === "دبل M") setDoubleMBalance(prev => prev - amount);
+
     setShowPayPopup(false);
   };
 
