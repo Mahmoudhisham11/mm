@@ -98,6 +98,20 @@ export default function Profit() {
       return newState;
     });
   };
+  const fetchReset = async () => {
+  if (!shop) return;
+
+  const resetSnap = await getDocs(query(collection(db, "reset"), where("shop", "==", shop)));
+  const resets = resetSnap.docs.map(doc => doc.data());
+
+  if (resets.length > 0) {
+    // ناخد آخر تصفير
+    const latestReset = resets.reduce((prev, curr) => 
+      prev.resetAt.seconds > curr.resetAt.seconds ? prev : curr
+    );
+    setResetAt(latestReset.resetAt.toDate ? latestReset.resetAt.toDate() : new Date(latestReset.resetAt));
+  }
+};
 
   const fetchData = async () => {
     if (!shop) return;
@@ -118,7 +132,13 @@ export default function Profit() {
     setDeletedTotal(totalDeleted);
   };
 
-  useEffect(() => { fetchData(); }, [shop]);
+  useEffect(() => {
+  if (!shop) return;
+
+  fetchData();      // البيانات العادية
+  fetchReset();     // جلب آخر تصفير
+}, [shop]);
+
 
   useEffect(() => {
   if (!shop) return;
@@ -142,7 +162,17 @@ export default function Profit() {
     return wDate >= from && wDate <= to;
   });
 
-  // الحسابات
+  // لو فيه تصفير → نصفر كل الحسابات فورًا
+  if (resetAt) {
+    setProfit(0);
+    setMostafaBalance(0);
+    setMidoBalance(0);
+    setDoubleMBalance(0);
+    setCashTotal(prev => prev); // لو عايز تسيب الخزنة زي ما هي
+    return; // نوقف باقي الحسابات
+  }
+
+  // الحسابات الطبيعية
   const totalMasrofat = filteredDaily.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
   const totalCash = filteredDaily.reduce((sum, d) => sum + (d.totalSales || 0), 0);
   let remainingCash = totalCash - totalMasrofat;
@@ -169,40 +199,15 @@ export default function Profit() {
   const returnedProfit = filteredDaily.reduce((sum, d) => sum + (d.returnedProfit || 0), 0);
   remainingProfit -= returnedProfit;
 
-  // تحديد إذا كانت العملية ضمن الفترة الحالية (اليوم الحالي)
-  const now = new Date();
-  const isCurrentPeriod = !dateFrom && !dateTo;
+  setProfit(remainingProfit);
+  setMostafaBalance(mostafaSum);
+  setMidoBalance(midoSum);
+  setDoubleMBalance(doubleMSum);
 
- // لو فيه resetAt نركب عليه نظام التصفير
-if (resetAt && isCurrentPeriod) {
-
-  const allDataDates = [
-    ...filteredDaily.map(d => parseDate(d.date) || parseDate(d.createdAt)),
-    ...filteredReports.map(r => parseDate(r.date) || parseDate(r.createdAt)),
-    ...filteredWithdraws.map(w => parseDate(w.date) || parseDate(w.createdAt)),
-  ].filter(Boolean);
-
-  const hasAfterReset = allDataDates.some(d => d >= resetAt);
-  const hasBeforeReset = allDataDates.some(d => d < resetAt);
-
-  // لو كل البيانات بعد التصفير → صفر
-  if (hasAfterReset && !hasBeforeReset) {
-    setProfit(0);
-    setMostafaBalance(0);
-    setMidoBalance(0);
-    setDoubleMBalance(0);
-    return;
-  }
-}
-
-// الوضع الطبيعي
-setProfit(remainingProfit);
-setMostafaBalance(mostafaSum);
-setMidoBalance(midoSum);
-setDoubleMBalance(doubleMSum);
+}, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, resetAt]);
 
 
-}, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, isResetActive]);
+
 
   const handleWithdraw = async () => {
     if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
