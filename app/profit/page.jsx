@@ -22,6 +22,7 @@ export default function Profit() {
   const [showPopup, setShowPopup] = useState(false);
   const [withdrawPerson, setWithdrawPerson] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawNote, setWithdrawNote] = useState(""); // حقل الملاحظات للسحب
   const [showPayPopup, setShowPayPopup] = useState(false);
   const [payAmount, setPayAmount] = useState("");
   const [payPerson, setPayPerson] = useState("");
@@ -29,15 +30,14 @@ export default function Profit() {
   const [isHidden, setIsHidden] = useState(true);
   const [showAddCashPopup, setShowAddCashPopup] = useState(false);
   const [addCashAmount, setAddCashAmount] = useState("");
+  const [addCashNote, setAddCashNote] = useState(""); // حقل الملاحظات للخزنة
 
-  // تحويل الأرقام العربية إلى إنجليزية
   const arabicToEnglishNumbers = (str) => {
     if (!str) return str;
     const map = { '٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9' };
     return str.replace(/[٠-٩]/g, d => map[d]);
   };
 
-  // دالة موحدة لتحويل أي نوع تاريخ إلى Date
   const parseDate = (val) => {
     if (!val) return null;
     if (val instanceof Date) return val;
@@ -62,7 +62,6 @@ export default function Profit() {
     return null;
   };
 
-  // تحويل التاريخ لعرض DD/MM/YYYY
   const formatDate = (date) => {
     if (!date) return "—";
     const d = date.getDate().toString().padStart(2, '0');
@@ -175,6 +174,7 @@ export default function Profit() {
       shop,
       person: withdrawPerson,
       amount,
+      note: withdrawNote || "", // حفظ الملاحظات
       date: newDate,
       createdAt: Timestamp.now(),
       paid: 0
@@ -182,11 +182,12 @@ export default function Profit() {
 
     setWithdraws(prev => [
       ...prev,
-      { id: docRef.id, person: withdrawPerson, amount, date: newDate, createdAt: Timestamp.now(), paid: 0 },
+      { id: docRef.id, person: withdrawPerson, amount, note: withdrawNote || "", date: newDate, createdAt: Timestamp.now(), paid: 0 },
     ]);
 
     setWithdrawPerson("");
     setWithdrawAmount("");
+    setWithdrawNote("");
     setShowPopup(false);
   };
 
@@ -229,16 +230,23 @@ export default function Profit() {
     if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
 
     const newDate = formatDate(new Date());
-    await addDoc(collection(db, "dailyProfit"), {
+    const docRef = await addDoc(collection(db, "dailyProfit"), {
       shop,
       totalSales: amount,
       totalMasrofat: 0,
       returnedProfit: 0,
+      note: addCashNote || "", // حفظ الملاحظات
       date: newDate,
       createdAt: Timestamp.now(),
     });
 
+    setWithdraws(prev => [
+      ...prev,
+      { id: docRef.id, person: "الخزنة", amount, note: addCashNote || "", date: newDate, createdAt: Timestamp.now(), paid: 0 },
+    ]);
+
     setAddCashAmount("");
+    setAddCashNote("");
     setShowAddCashPopup(false);
     fetchData();
   };
@@ -286,6 +294,7 @@ export default function Profit() {
                 <th>المبلغ</th>
                 <th>المدفوع</th>
                 <th>المتبقي</th>
+                <th>الملاحظات</th>
                 <th>التاريخ</th>
                 <th>حذف</th>
                 <th>سداد</th>
@@ -298,6 +307,7 @@ export default function Profit() {
                   <td>{isHidden ? "*****" : w.amount}</td>
                   <td>{isHidden ? "*****" : (w.paid || 0)}</td>
                   <td>{isHidden ? "*****" : (w.amount - (w.paid || 0))}</td>
+                  <td>{w.note || ""}</td>
                   <td>{formatDate(parseDate(w.date) || parseDate(w.createdAt))}</td>
                   <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.delBtn} onClick={() => handleDeleteWithdraw(w.id)}>حذف</button>}</td>
                   <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.payBtn} onClick={() => handleOpenPay(w)}>سداد</button>}</td>
@@ -318,6 +328,7 @@ export default function Profit() {
                 <option value="دبل M">دبل M</option>
               </select>
               <input type="number" placeholder="المبلغ" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} />
+              <input type="text" placeholder="ملاحظات" value={withdrawNote} onChange={e => setWithdrawNote(e.target.value)} />
               <div className={styles.popupActions}>
                 <button onClick={handleWithdraw}>تأكيد</button>
                 <button onClick={() => setShowPopup(false)}>إلغاء</button>
@@ -345,6 +356,7 @@ export default function Profit() {
             <div className={styles.popupContent}>
               <h3>إضافة مبلغ للخزنة</h3>
               <input type="number" placeholder="المبلغ" value={addCashAmount} onChange={e => setAddCashAmount(e.target.value)} />
+              <input type="text" placeholder="ملاحظات" value={addCashNote} onChange={e => setAddCashNote(e.target.value)} />
               <div className={styles.popupActions}>
                 <button onClick={handleAddCash}>تأكيد</button>
                 <button onClick={() => setShowAddCashPopup(false)}>إلغاء</button>
