@@ -695,62 +695,60 @@
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedReport.cart?.map((item, index) => (
-                    <tr key={index}>
-                      <td>{item.name} {item.color ? ` - ${item.color}` : ""} {item.size ? ` - ${item.size}` : ""}</td>
-                      <td>{item.sellPrice}</td>
-                      <td>{item.quantity}</td>
-                      <td>{item.condition || "-"}</td>
-                      <td>{item.serial || "-"}</td>
-                      <td>
-                        <button className={styles.returnBtn} onClick={() => handleReturnProduct(item, selectedReport.id)}>
-                          مرتجع
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {showDeleted
+                    ? deletedProducts.length === 0
+                      ? (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: "center", padding: 20 }}>
+                            لا توجد منتجات محذوفة.
+                          </td>
+                        </tr>
+                      )
+                      : deletedProducts.map((item) => {
+                          const delMs = toMillis(item.deletedAt);
+                          const delDateStr = delMs ? new Date(delMs).toLocaleDateString("ar-EG") : (item.deletedAt || "-");
+                          return (
+                            <tr key={item.id}>
+                              <td>-</td>
+                              <td>-</td>
+                              <td>{item.name}</td>
+                              <td>{item.quantity}</td>
+                              <td>{item.sellPrice}</td>
+                              <td>{delDateStr}</td>
+                            </tr>
+                          );
+                        })
+                    : displayedReports.length === 0
+                      ? (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: "center", padding: 20 }}>
+                            لا توجد تقارير في الفترة المحددة.
+                          </td>
+                        </tr>
+                      )
+                      : displayedReports.map((report) => {
+                          const total = Number(report.total ?? report.subtotal ?? 0);
+                          return (
+                            <tr key={report.id}>
+                              <td>{report.clientName || "-"}</td>
+                              <td>{report.phone || "-"}</td>
+                              <td>{report.cart?.length || 0}</td>
+                              <td>{total} EGP</td>
+                              <td>{report.date ? new Date(report.date.seconds * 1000).toLocaleDateString("ar-EG") : "-"}</td>
+                              <td>
+                                <button className={styles.detailsBtn} onClick={() => openDrawer(report)}>عرض التفاصيل</button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                  }
                 </tbody>
+
               </table>
             </div>
 
           </div>
         )}
-        {showDeleted && (
-  <div className={styles.tableContainer}>
-    <table>
-      <thead>
-        <tr>
-          <th>اسم المنتج</th>
-          <th>الكمية</th>
-          <th>سعر البيع</th>
-          <th>تاريخ الحذف</th>
-        </tr>
-      </thead>
-      <tbody>
-        {deletedProducts.length === 0 ? (
-          <tr>
-            <td colSpan={4} style={{ textAlign: "center", padding: 20 }}>
-              لا توجد منتجات محذوفة.
-            </td>
-          </tr>
-        ) : (
-          deletedProducts.map((item) => {
-            const delMs = toMillis(item.deletedAt);
-            const delDateStr = delMs ? new Date(delMs).toLocaleDateString("ar-EG") : (item.deletedAt || "-");
-            return (
-              <tr key={item.id}>
-                <td>{item.name}</td>
-                <td>{item.quantity}</td>
-                <td>{item.sellPrice}</td>
-                <td>{delDateStr}</td>
-              </tr>
-            );
-          })
-        )}
-      </tbody>
-    </table>
-  </div>
-)}
       </div>
     );
   }
