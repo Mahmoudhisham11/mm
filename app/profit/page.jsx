@@ -108,7 +108,7 @@ export default function Profit() {
     const deletedSnap = await getDocs(query(collection(db, "deletedProducts"), where("shop", "==", shop)));
     const deletedArr = deletedSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     setDeletedProducts(deletedArr);
-    const totalDeleted = deletedArr.reduce((sum, p) => sum + ((p.sellPrice || 0) * (p.quantity || 0)), 0);
+    const totalDeleted = deletedArr.reduce((sum, p) => sum + ((p.buyPrice || 0) * (p.quantity || 0)), 0);
     setDeletedTotal(totalDeleted);
   };
 
@@ -275,6 +275,31 @@ const handleResetProfit = () => {
     setWithdraws(prev => prev.map(w => w.id === payWithdrawId ? { ...w, paid: (w.paid || 0) + amount } : w));
     setShowPayPopup(false);
   };
+  const handleClearDeletedProducts = async () => {
+  if (!shop) return alert("لم يتم العثور على المتجر");
+
+  const sure = confirm("هل أنت متأكد من حذف كل المنتجات المرتجعة؟");
+  if (!sure) return;
+
+  try {
+    const q = query(collection(db, "deletedProducts"), where("shop", "==", shop));
+    const snap = await getDocs(q);
+
+    const deletePromises = snap.docs.map(d => deleteDoc(doc(db, "deletedProducts", d.id)));
+
+    await Promise.all(deletePromises);
+
+    // تحديث الواجهة
+    setDeletedProducts([]);
+    setDeletedTotal(0);
+
+    alert("تم حذف جميع المنتجات المرتجعة بنجاح ✔");
+  } catch (err) {
+    console.error("خطأ أثناء حذف المرتجعات:", err);
+    alert("حدث خطأ أثناء الحذف");
+  }
+};
+
 
   return (
     <div className={styles.profit}>
@@ -314,6 +339,13 @@ const handleResetProfit = () => {
 
         <button onClick={() => setShowPopup(true)} className={styles.withdrawBtn}>سحب</button>
         <button onClick={() => setShowAddCashPopup(true)} className={styles.withdrawBtn} style={{ marginLeft: '10px' }}>إضافة للخزنة</button>
+        <button 
+          onClick={handleClearDeletedProducts} 
+          className={styles.withdrawBtn} 
+          style={{ marginLeft: '10px', backgroundColor: 'red', color: '#fff' }}
+        >
+          حذف كل المرتجعات
+        </button>
 
         <div className={styles.tableContainer}>
           <table>

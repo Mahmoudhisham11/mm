@@ -623,31 +623,12 @@
               ? new Date(delMs).toLocaleDateString("ar-EG")
               : item.deletedAt || "-";
 
-            const handleDelete = async () => {
-              if (!confirm(`هل أنت متأكد أنك تريد حذف ${item.name} نهائيًا؟`)) return;
-              try {
-                await deleteDoc(doc(db, "deletedProducts", item.id));
-                alert("✅ تم حذف المنتج نهائيًا");
-              } catch (error) {
-                console.error("خطأ أثناء حذف المنتج:", error);
-                alert("❌ حدث خطأ أثناء الحذف");
-              }
-            };
-
             return (
               <tr key={item.id}>
                 <td>{item.name}</td>
                 <td>{item.quantity}</td>
-                <td>{item.sellPrice}</td>
+                <td>{item.buyPrice}</td>
                 <td>{delDateStr}</td>
-                <td>
-                  <button
-                    style={{ background: "red", color: "white", padding: "3px 8px", borderRadius: 5 }}
-                    onClick={handleDelete}
-                  >
-                    حذف نهائي
-                  </button>
-                </td>
               </tr>
             );
           })
