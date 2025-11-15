@@ -15,6 +15,8 @@ export default function Profit() {
   const [mostafaBalance, setMostafaBalance] = useState(0);
   const [midoBalance, setMidoBalance] = useState(0);
   const [doubleMBalance, setDoubleMBalance] = useState(0);
+  const [deletedProducts, setDeletedProducts] = useState([]);
+  const [deletedTotal, setDeletedTotal] = useState(0);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showPopup, setShowPopup] = useState(false);
@@ -25,6 +27,8 @@ export default function Profit() {
   const [payPerson, setPayPerson] = useState("");
   const [payWithdrawId, setPayWithdrawId] = useState(null);
   const [isHidden, setIsHidden] = useState(true);
+  const [showAddCashPopup, setShowAddCashPopup] = useState(false);
+  const [addCashAmount, setAddCashAmount] = useState("");
 
   // تحويل الأرقام العربية إلى إنجليزية
   const arabicToEnglishNumbers = (str) => {
@@ -33,7 +37,6 @@ export default function Profit() {
     return str.replace(/[٠-٩]/g, d => map[d]);
   };
 
-  // تعديل parseDate لدعم التواريخ العربية و Timestamp
   const parseDate = (val) => {
     if (!val) return null;
     if (val instanceof Date) return val;
@@ -86,82 +89,73 @@ export default function Profit() {
 
     const dailyProfitSnap = await getDocs(query(collection(db, "dailyProfit"), where("shop", "==", shop)));
     setDailyProfitData(dailyProfitSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+    const deletedSnap = await getDocs(query(collection(db, "deletedProducts"), where("shop", "==", shop)));
+    const deletedArr = deletedSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setDeletedProducts(deletedArr);
+    const totalDeleted = deletedArr.reduce((sum, p) => sum + ((p.sellPrice || 0) * (p.quantity || 0)), 0);
+    setDeletedTotal(totalDeleted);
   };
 
   useEffect(() => { fetchData(); }, [shop]);
 
-  // حساب الارصدة والربح بشكل ديناميكي اعتمادًا على البيانات المحدثة
-useEffect(() => {
-  if (!shop) return;
+  useEffect(() => {
+    if (!shop) return;
 
-  // تحويل التواريخ، لو فاضية ناخد كل البيانات
-  const from = parseDate(dateFrom) || new Date("1970-01-01");
-  const to = parseDate(dateTo) || new Date();
-  to.setHours(23, 59, 59, 999);
+    const from = parseDate(dateFrom) || new Date("1970-01-01");
+    const to = parseDate(dateTo) || new Date();
+    to.setHours(23, 59, 59, 999);
 
-  // فلترة البيانات اليومية
-  const filteredDaily = dailyProfitData.filter(d => {
-    const dDate = parseDate(d.date || d.createdAt);
-    return dDate && dDate >= from && dDate <= to;
-  });
+    const filteredDaily = dailyProfitData.filter(d => {
+      const dDate = parseDate(d.date || d.createdAt);
+      return dDate && dDate >= from && dDate <= to;
+    });
 
-  // فلترة التقارير
-  const filteredReports = reports.filter(r => {
-    const rDate = parseDate(r.date || r.createdAt);
-    return rDate && rDate >= from && rDate <= to;
-  });
+    const filteredReports = reports.filter(r => {
+      const rDate = parseDate(r.date || r.createdAt);
+      return rDate && rDate >= from && rDate <= to;
+    });
 
-  // فلترة السحوبات
-  const filteredWithdraws = withdraws.filter(w => {
-    const wDate = parseDate(w.date || w.createdAt);
-    // لو التاريخ فاضي أو غير قابل للفلترة، اعتبره ضمن السحوبات
-    if (!wDate) return true;
-    return wDate >= from && wDate <= to;
-  });
+    const filteredWithdraws = withdraws.filter(w => {
+      const wDate = parseDate(w.date || w.createdAt);
+      if (!wDate) return true;
+      return wDate >= from && wDate <= to;
+    });
 
-  console.log("Filtered Withdraws:", filteredWithdraws);
-  console.log("All Withdraws State:", withdraws);
+    const totalMasrofat = filteredDaily.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
+    const totalCash = filteredDaily.reduce((sum, d) => sum + (d.totalSales || 0), 0);
+    let remainingCash = totalCash - totalMasrofat;
 
-  // حساب الارصدة
-  const totalMasrofat = filteredDaily.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
-  const totalCash = filteredDaily.reduce((sum, d) => sum + (d.totalSales || 0), 0);
-  let remainingCash = totalCash - totalMasrofat;
+    filteredWithdraws.forEach(w => {
+      const remaining = (w.amount || 0) - (w.paid || 0);
+      remainingCash -= remaining;
+    });
+    setCashTotal(remainingCash);
 
-  // خصم السحوبات من الخزنة
-  filteredWithdraws.forEach(w => {
-    const remaining = (w.amount || 0) - (w.paid || 0);
-    remainingCash -= remaining;
-  });
-  setCashTotal(remainingCash);
+    let remainingProfit = filteredReports.reduce((sum, r) => {
+      if (!r.cart || !Array.isArray(r.cart)) return sum;
+      return sum + r.cart.reduce((s, item) => s + ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0), 0);
+    }, 0);
 
-  // حساب الربح
-  let remainingProfit = filteredReports.reduce((sum, r) => {
-    if (!r.cart || !Array.isArray(r.cart)) return sum;
-    return sum + r.cart.reduce((s, item) => s + ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0), 0);
-  }, 0);
+    let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
+    filteredWithdraws.forEach(w => {
+      const remaining = (w.amount || 0) - (w.paid || 0);
+      remainingProfit -= remaining;
+      if (w.person === "مصطفى") mostafaSum += remaining;
+      if (w.person === "ميدو") midoSum += remaining;
+      if (w.person === "دبل M") doubleMSum += remaining;
+    });
 
-  let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
-  filteredWithdraws.forEach(w => {
-    const remaining = (w.amount || 0) - (w.paid || 0);
-    remainingProfit -= remaining;
-    if (w.person === "مصطفى") mostafaSum += remaining;
-    if (w.person === "ميدو") midoSum += remaining;
-    if (w.person === "دبل M") doubleMSum += remaining;
-  });
+    const returnedProfit = filteredDaily.reduce((sum, d) => sum + (d.returnedProfit || 0), 0);
+    remainingProfit -= returnedProfit;
 
-  const returnedProfit = filteredDaily.reduce((sum, d) => sum + (d.returnedProfit || 0), 0);
-  remainingProfit -= returnedProfit;
+    setProfit(remainingProfit);
+    setMostafaBalance(mostafaSum);
+    setMidoBalance(midoSum);
+    setDoubleMBalance(doubleMSum);
 
-  setProfit(remainingProfit);
-  setMostafaBalance(mostafaSum);
-  setMidoBalance(midoSum);
-  setDoubleMBalance(doubleMSum);
+  }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop]);
 
-}, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop]);
-
-
-
-  // عمليات السحب والدفع
   const handleWithdraw = async () => {
     if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
     const amount = Number(withdrawAmount);
@@ -221,6 +215,24 @@ useEffect(() => {
     setShowPayPopup(false);
   };
 
+  const handleAddCash = async () => {
+    const amount = Number(addCashAmount);
+    if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
+
+    await addDoc(collection(db, "dailyProfit"), {
+      shop,
+      totalSales: amount,
+      totalMasrofat: 0,
+      returnedProfit: 0,
+      date: new Date().toLocaleDateString("ar-EG"),
+      createdAt: Timestamp.now(),
+    });
+
+    setAddCashAmount("");
+    setShowAddCashPopup(false);
+    fetchData(); // لتحديث الخزنة
+  };
+
   return (
     <div className={styles.profit}>
       <SideBar />
@@ -243,6 +255,7 @@ useEffect(() => {
         <div className={styles.cardContent}>
           <div className={styles.cardsContainer}>
             <div className={styles.card}><h4>الخزنة</h4><p>{isHidden ? "*****" : cashTotal}</p></div>
+            <div className={styles.card}><h4>مرتجع المنتجات</h4><p>{isHidden ? "*****" : deletedTotal}</p></div>
           </div>
           <div className={styles.cardsContainer}>
             <div className={styles.card}><h4>الربح</h4><p>{isHidden ? "*****" : profit}</p></div>
@@ -253,6 +266,7 @@ useEffect(() => {
         </div>
 
         <button onClick={() => setShowPopup(true)} className={styles.withdrawBtn}>سحب</button>
+        <button onClick={() => setShowAddCashPopup(true)} className={styles.withdrawBtn} style={{ marginLeft: '10px' }}>إضافة للخزنة</button>
 
         <div className={styles.tableContainer}>
           <table>
@@ -311,6 +325,19 @@ useEffect(() => {
               <div className={styles.popupActions}>
                 <button onClick={handlePay}>تأكيد</button>
                 <button onClick={() => setShowPayPopup(false)}>إلغاء</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showAddCashPopup && (
+          <div className={styles.popup}>
+            <div className={styles.popupContent}>
+              <h3>إضافة مبلغ للخزنة</h3>
+              <input type="number" placeholder="المبلغ" value={addCashAmount} onChange={e => setAddCashAmount(e.target.value)} />
+              <div className={styles.popupActions}>
+                <button onClick={handleAddCash}>تأكيد</button>
+                <button onClick={() => setShowAddCashPopup(false)}>إلغاء</button>
               </div>
             </div>
           </div>

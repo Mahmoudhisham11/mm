@@ -571,12 +571,12 @@
               onClick={() => setShowDeleted(!showDeleted)}
               style={{ marginRight: "15px" }}
             >
-              {showDeleted ? "إخفاء المنتجات المحذوفة" : "عرض المنتجات المحذوفة"}
+              {showDeleted ? "إخفاء مرتجع المنتجات" : "عرض مرتجع المنتجات"}
             </button>
           </div>
 
           {!showReturns && (
-            <div className={styles.tableContainer}>
+<div className={styles.tableContainer}>
   <table>
     <thead>
       <tr>
@@ -586,6 +586,7 @@
             <th>الكمية</th>
             <th>سعر البيع</th>
             <th>تاريخ الحذف</th>
+            <th>إجراء</th>
           </>
         ) : showReturns ? (
           <>
@@ -611,7 +612,7 @@
       {showDeleted ? (
         deletedProducts.length === 0 ? (
           <tr>
-            <td colSpan={4} style={{ textAlign: "center", padding: 20 }}>
+            <td colSpan={5} style={{ textAlign: "center", padding: 20 }}>
               لا توجد منتجات محذوفة.
             </td>
           </tr>
@@ -621,12 +622,32 @@
             const delDateStr = delMs
               ? new Date(delMs).toLocaleDateString("ar-EG")
               : item.deletedAt || "-";
+
+            const handleDelete = async () => {
+              if (!confirm(`هل أنت متأكد أنك تريد حذف ${item.name} نهائيًا؟`)) return;
+              try {
+                await deleteDoc(doc(db, "deletedProducts", item.id));
+                alert("✅ تم حذف المنتج نهائيًا");
+              } catch (error) {
+                console.error("خطأ أثناء حذف المنتج:", error);
+                alert("❌ حدث خطأ أثناء الحذف");
+              }
+            };
+
             return (
               <tr key={item.id}>
                 <td>{item.name}</td>
                 <td>{item.quantity}</td>
                 <td>{item.sellPrice}</td>
                 <td>{delDateStr}</td>
+                <td>
+                  <button
+                    style={{ background: "red", color: "white", padding: "3px 8px", borderRadius: 5 }}
+                    onClick={handleDelete}
+                  >
+                    حذف نهائي
+                  </button>
+                </td>
               </tr>
             );
           })
@@ -677,9 +698,7 @@
               <td>{total} EGP</td>
               <td>
                 {report.date
-                  ? new Date(report.date.seconds * 1000).toLocaleDateString(
-                      "ar-EG"
-                    )
+                  ? new Date(report.date.seconds * 1000).toLocaleDateString("ar-EG")
                   : "-"}
               </td>
               <td>
@@ -697,6 +716,7 @@
     </tbody>
   </table>
 </div>
+
 
           )}
 
