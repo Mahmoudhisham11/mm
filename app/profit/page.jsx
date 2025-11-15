@@ -108,7 +108,7 @@ export default function Profit() {
     const deletedSnap = await getDocs(query(collection(db, "deletedProducts"), where("shop", "==", shop)));
     const deletedArr = deletedSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     setDeletedProducts(deletedArr);
-    const totalDeleted = deletedArr.reduce((sum, p) => sum + ((p.buyPrice || 0) * (p.quantity || 0)), 0);
+    const totalDeleted = deletedArr.reduce((sum, p) => sum + ((p.buyPrice || 0) * (p.deletedTotalQty || 0)), 0);
     setDeletedTotal(totalDeleted);
   };
 

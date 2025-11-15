@@ -626,7 +626,7 @@
             return (
               <tr key={item.id}>
                 <td>{item.name}</td>
-                <td>{item.quantity}</td>
+                <td>{item.deletedTotalQty}</td>
                 <td>{item.buyPrice}</td>
                 <td>{delDateStr}</td>
               </tr>
