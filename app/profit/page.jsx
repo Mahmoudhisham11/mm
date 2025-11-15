@@ -131,9 +131,15 @@ export default function Profit() {
     const totalCash = filteredDaily.reduce((sum, d) => sum + (d.totalSales || 0), 0);
     let remainingCash = totalCash - totalMasrofat;
 
+    // حساب الرصيد الحقيقي للخزنة بناءً على السحب والإضافات
     filteredWithdraws.forEach(w => {
       const remaining = (w.amount || 0) - (w.paid || 0);
-      remainingCash -= remaining;
+      if (w.person === "الخزنة") {
+        // الإضافات تزيد الخزنة
+        remainingCash += remaining;
+      } else {
+        remainingCash -= remaining;
+      }
     });
     setCashTotal(remainingCash);
 
@@ -145,7 +151,7 @@ export default function Profit() {
     let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
     filteredWithdraws.forEach(w => {
       const remaining = (w.amount || 0) - (w.paid || 0);
-      remainingProfit -= remaining;
+      if (w.person !== "الخزنة") remainingProfit -= remaining;
       if (w.person === "مصطفى") mostafaSum += remaining;
       if (w.person === "ميدو") midoSum += remaining;
       if (w.person === "دبل M") doubleMSum += remaining;
@@ -183,6 +189,8 @@ export default function Profit() {
       { id: docRef.id, person: withdrawPerson, amount, note: withdrawNote || "", date: newDate, createdAt: Timestamp.now(), paid: 0 },
     ]);
 
+    setCashTotal(prev => prev - amount); // السحب يقلل الخزنة
+
     setWithdrawPerson("");
     setWithdrawAmount("");
     setWithdrawNote("");
@@ -192,6 +200,12 @@ export default function Profit() {
   const handleDeleteWithdraw = async (id) => {
     if (!id) return;
     try {
+      const w = withdraws.find(w => w.id === id);
+      if (w) {
+        // إذا كانت إضافة للخزنة، حذفها يقلل الخزنة، وإذا كانت سحب يزيد الخزنة
+        if (w.person === "الخزنة") setCashTotal(prev => prev - (w.amount - (w.paid || 0)));
+        else setCashTotal(prev => prev + (w.amount - (w.paid || 0)));
+      }
       await deleteDoc(doc(db, "withdraws", id));
       setWithdraws(prev => prev.filter(w => w.id !== id));
     } catch (error) {
@@ -220,6 +234,11 @@ export default function Profit() {
     await updateDoc(withdrawRef, { paid: (withdraw.paid || 0) + amount });
 
     setWithdraws(prev => prev.map(w => w.id === payWithdrawId ? { ...w, paid: (w.paid || 0) + amount } : w));
+
+    // تعديل الخزنة حسب نوع العملية
+    if (withdraw.person === "الخزنة") setCashTotal(prev => prev - amount); // سداد من الخزنة يقلل الرصيد
+    else setCashTotal(prev => prev + amount); // سداد السحب يزيد الرصيد
+
     setShowPayPopup(false);
   };
 
@@ -228,7 +247,7 @@ export default function Profit() {
     if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
 
     const newDate = formatDate(new Date());
-    const docRef = await addDoc(collection(db, "withdraws"), { // أضف كـ withdraw لتظهر في الجدول
+    const docRef = await addDoc(collection(db, "withdraws"), {
       shop,
       person: "الخزنة",
       amount,
@@ -243,14 +262,12 @@ export default function Profit() {
       { id: docRef.id, person: "الخزنة", amount, note: addCashNote || "", date: newDate, createdAt: Timestamp.now(), paid: 0 }
     ]);
 
+    setCashTotal(prev => prev + amount); // الإضافة تزيد الخزنة
+
     setAddCashAmount("");
     setAddCashNote("");
     setShowAddCashPopup(false);
-    fetchData();
   };
-
-  // دمج السجلات مع إضافة حقل note في الجدول
-  const combinedWithdraws = withdraws;
 
   return (
     <div className={styles.profit}>
@@ -302,7 +319,7 @@ export default function Profit() {
               </tr>
             </thead>
             <tbody>
-              {combinedWithdraws.map(w => (
+              {withdraws.map(w => (
                 <tr key={w.id}>
                   <td>{w.person}</td>
                   <td>{isHidden ? "*****" : w.amount}</td>
