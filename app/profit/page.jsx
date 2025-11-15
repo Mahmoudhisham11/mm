@@ -8,6 +8,7 @@ import { collection, getDocs, query, where, addDoc, Timestamp, deleteDoc, doc, u
 export default function Profit() {
   const [shop, setShop] = useState('');
   const [isResetActive, setIsResetActive] = useState(false);
+  const [resetAt, setResetAt] = useState(null);
   const [reports, setReports] = useState([]);
   const [withdraws, setWithdraws] = useState([]);
   const [dailyProfitData, setDailyProfitData] = useState([]);
@@ -78,12 +79,17 @@ export default function Profit() {
   };
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setShop(localStorage.getItem('shop'));
-      const savedHiddenState = localStorage.getItem('hideFinance');
-      if (savedHiddenState !== null) setIsHidden(savedHiddenState === 'true');
-    }
-  }, []);
+  if (typeof window !== 'undefined') {
+    setShop(localStorage.getItem('shop'));
+
+    const savedHiddenState = localStorage.getItem('hideFinance');
+    if (savedHiddenState !== null) setIsHidden(savedHiddenState === 'true');
+
+    const savedReset = localStorage.getItem("resetAt");
+    if (savedReset) setResetAt(new Date(savedReset));
+  }
+}, []);
+
 
   const toggleHidden = () => {
     setIsHidden(prev => {
@@ -167,18 +173,34 @@ export default function Profit() {
   const now = new Date();
   const isCurrentPeriod = !dateFrom && !dateTo;
 
-  // إذا تم تفعيل التصفير والفترة الحالية، نظهر القيم مصفرّة
-  if (isResetActive && isCurrentPeriod) {
+ // لو فيه resetAt نركب عليه نظام التصفير
+if (resetAt && isCurrentPeriod) {
+
+  const allDataDates = [
+    ...filteredDaily.map(d => parseDate(d.date) || parseDate(d.createdAt)),
+    ...filteredReports.map(r => parseDate(r.date) || parseDate(r.createdAt)),
+    ...filteredWithdraws.map(w => parseDate(w.date) || parseDate(w.createdAt)),
+  ].filter(Boolean);
+
+  const hasAfterReset = allDataDates.some(d => d >= resetAt);
+  const hasBeforeReset = allDataDates.some(d => d < resetAt);
+
+  // لو كل البيانات بعد التصفير → صفر
+  if (hasAfterReset && !hasBeforeReset) {
     setProfit(0);
     setMostafaBalance(0);
     setMidoBalance(0);
     setDoubleMBalance(0);
-  } else {
-    setProfit(remainingProfit);
-    setMostafaBalance(mostafaSum);
-    setMidoBalance(midoSum);
-    setDoubleMBalance(doubleMSum);
+    return;
   }
+}
+
+// الوضع الطبيعي
+setProfit(remainingProfit);
+setMostafaBalance(mostafaSum);
+setMidoBalance(midoSum);
+setDoubleMBalance(doubleMSum);
+
 
 }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, isResetActive]);
 
@@ -231,15 +253,32 @@ export default function Profit() {
     fetchData();
   };
 
-const handleResetProfit = () => {
-  // تفعيل التصفير مباشرة
-  setIsResetActive(true);
-  // تصفير الأرباح مباشرة عند الضغط
+const handleResetProfit = async () => {
+  const confirmReset = confirm("هل أنت متأكد من تصفير الأرباح والأرصدة؟");
+  if (!confirmReset) return;
+
+  const now = new Date();
+
+  // حفظ التصفير في Firestore
+  await addDoc(collection(db, "reset"), {
+    shop,
+    resetAt: now,
+  });
+
+  // حفظ التصفير محليًا
+  localStorage.setItem("resetAt", now.toISOString());
+
+  setResetAt(now);
+
+  // تصفير الواجهة مباشرة
   setProfit(0);
   setMostafaBalance(0);
   setMidoBalance(0);
   setDoubleMBalance(0);
+
+  setIsResetActive(true);
 };
+
 
 
   const handleDeleteWithdraw = async (id) => {
