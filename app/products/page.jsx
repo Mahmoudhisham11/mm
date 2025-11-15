@@ -653,7 +653,7 @@ function Products() {
                             <td style={{ whiteSpace: 'pre-wrap', maxWidth: 300 }}>{sizesDetail || "-"}</td>
                             <td>{product.date?.toDate ? product.date.toDate().toLocaleDateString("ar-EG") : product.date}</td>
                             <td className={styles.actions}>
-                              <button onClick={() => handleDelete(product.id)}><FaRegTrashAlt /></button>
+                              <button onClick={() => handleDelete(product)}><FaRegTrashAlt /></button>
                               <button onClick={() => handleEdit(product)}><MdOutlineEdit /></button>
                               <button onClick={() => handlePrintLabel(product)}>🖨️</button>
                             </td>
