@@ -162,7 +162,7 @@ useEffect(() => {
     return wDate >= from && wDate <= to;
   });
 
-  // 1️⃣ حساب الخزنة طبيعي (دائمًا)
+  // 1️⃣ حساب الخزنة دائمًا
   const totalMasrofat = filteredDaily.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
   const totalCash = filteredDaily.reduce((sum, d) => sum + (d.totalSales || 0), 0);
   let remainingCash = totalCash - totalMasrofat;
@@ -172,30 +172,28 @@ useEffect(() => {
   });
   setCashTotal(remainingCash);
 
-  // 2️⃣ حساب الأرباح بعد التصفير
+  // 2️⃣ حساب الأرباح
   let remainingProfit = 0;
   filteredReports.forEach(r => {
-    const rDate = parseDate(r.date) || parseDate(r.createdAt);
-    if (resetAt && rDate >= resetAt) return; // تجاهل ما بعد reset
     if (!r.cart || !Array.isArray(r.cart)) return;
     const reportProfit = r.cart.reduce((s, item) => s + ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0), 0);
     remainingProfit += reportProfit;
   });
 
-  // 3️⃣ حساب أرصدة الأشخاص بعد التصفير
+  // 3️⃣ خصم السحوبات قبل التصفير
   let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
   filteredWithdraws.forEach(w => {
     const wDate = parseDate(w.date) || parseDate(w.createdAt);
     const remaining = (w.amount || 0) - (w.paid || 0);
-    if (!resetAt || wDate < resetAt) { // فقط قبل reset
-      remainingProfit -= remaining;
+    if (!resetAt || wDate < resetAt) {
+      remainingProfit -= remaining; // خصم السحوبات قبل reset
       if (w.person === "مصطفى") mostafaSum += remaining;
       if (w.person === "ميدو") midoSum += remaining;
       if (w.person === "دبل M") doubleMSum += remaining;
     }
   });
 
-  // 4️⃣ خصم returnedProfit بنفس المنطق
+  // 4️⃣ خصم returnedProfit قبل التصفير
   const returnedProfit = filteredDaily.reduce((sum, d) => {
     const dDate = parseDate(d.date) || parseDate(d.createdAt);
     if (!resetAt || dDate < resetAt) return sum + (d.returnedProfit || 0);
@@ -210,6 +208,7 @@ useEffect(() => {
   setDoubleMBalance(doubleMSum);
 
 }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, resetAt]);
+
 
 
 
