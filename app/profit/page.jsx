@@ -115,73 +115,72 @@ export default function Profit() {
   useEffect(() => { fetchData(); }, [shop]);
 
   useEffect(() => {
-    if (!shop) return;
+  if (!shop) return;
 
-    const from = dateFrom ? new Date(dateFrom + "T00:00:00") : new Date("1970-01-01");
-    const to = dateTo ? new Date(dateTo + "T23:59:59") : new Date();
+  const from = dateFrom ? new Date(dateFrom + "T00:00:00") : new Date("1970-01-01");
+  const to = dateTo ? new Date(dateTo + "T23:59:59") : new Date();
 
-    const filteredDaily = dailyProfitData.filter(d => {
-      const dDate = parseDate(d.date) || parseDate(d.createdAt);
-      return dDate && dDate >= from && dDate <= to;
-    });
+  const filteredDaily = dailyProfitData.filter(d => {
+    const dDate = parseDate(d.date) || parseDate(d.createdAt);
+    return dDate && dDate >= from && dDate <= to;
+  });
 
-    const filteredReports = reports.filter(r => {
-      const rDate = parseDate(r.date) || parseDate(r.createdAt);
-      return rDate && rDate >= from && rDate <= to;
-    });
+  const filteredReports = reports.filter(r => {
+    const rDate = parseDate(r.date) || parseDate(r.createdAt);
+    return rDate && rDate >= from && rDate <= to;
+  });
 
-    const filteredWithdraws = withdraws.filter(w => {
-      const wDate = parseDate(w.date) || parseDate(w.createdAt);
-      if (!wDate) return true;
-      return wDate >= from && wDate <= to;
-    });
+  const filteredWithdraws = withdraws.filter(w => {
+    const wDate = parseDate(w.date) || parseDate(w.createdAt);
+    if (!wDate) return true;
+    return wDate >= from && wDate <= to;
+  });
 
-    // الحسابات
-    const totalMasrofat = filteredDaily.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
-    const totalCash = filteredDaily.reduce((sum, d) => sum + (d.totalSales || 0), 0);
-    let remainingCash = totalCash - totalMasrofat;
-    filteredWithdraws.forEach(w => {
-      const remaining = (w.amount || 0) - (w.paid || 0);
-      remainingCash -= remaining;
-    });
-    setCashTotal(remainingCash);
+  // الحسابات
+  const totalMasrofat = filteredDaily.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
+  const totalCash = filteredDaily.reduce((sum, d) => sum + (d.totalSales || 0), 0);
+  let remainingCash = totalCash - totalMasrofat;
+  filteredWithdraws.forEach(w => {
+    const remaining = (w.amount || 0) - (w.paid || 0);
+    remainingCash -= remaining;
+  });
+  setCashTotal(remainingCash);
 
-    let remainingProfit = filteredReports.reduce((sum, r) => {
-      if (!r.cart || !Array.isArray(r.cart)) return sum;
-      return sum + r.cart.reduce((s, item) => s + ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0), 0);
-    }, 0);
+  let remainingProfit = filteredReports.reduce((sum, r) => {
+    if (!r.cart || !Array.isArray(r.cart)) return sum;
+    return sum + r.cart.reduce((s, item) => s + ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0), 0);
+  }, 0);
 
-    let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
-    filteredWithdraws.forEach(w => {
-      const remaining = (w.amount || 0) - (w.paid || 0);
-      remainingProfit -= remaining;
-      if (w.person === "مصطفى") mostafaSum += remaining;
-      if (w.person === "ميدو") midoSum += remaining;
-      if (w.person === "دبل M") doubleMSum += remaining;
-    });
+  let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
+  filteredWithdraws.forEach(w => {
+    const remaining = (w.amount || 0) - (w.paid || 0);
+    remainingProfit -= remaining;
+    if (w.person === "مصطفى") mostafaSum += remaining;
+    if (w.person === "ميدو") midoSum += remaining;
+    if (w.person === "دبل M") doubleMSum += remaining;
+  });
 
-    const returnedProfit = filteredDaily.reduce((sum, d) => sum + (d.returnedProfit || 0), 0);
-    remainingProfit -= returnedProfit;
+  const returnedProfit = filteredDaily.reduce((sum, d) => sum + (d.returnedProfit || 0), 0);
+  remainingProfit -= returnedProfit;
 
-    // تحديد إذا كانت العملية ضمن الفترة الحالية (اليوم الحالي)
-const now = new Date();
-const isCurrentPeriod = !dateFrom && !dateTo;
+  // تحديد إذا كانت العملية ضمن الفترة الحالية (اليوم الحالي)
+  const now = new Date();
+  const isCurrentPeriod = !dateFrom && !dateTo;
 
-// إذا تم تفعيل التصفير والفترة الحالية، نظهر القيم مصفرّة
-if (isResetActive && isCurrentPeriod) {
-  setProfit(0);
-  setMostafaBalance(0);
-  setMidoBalance(0);
-  setDoubleMBalance(0);
-} else {
-  setProfit(remainingProfit);
-  setMostafaBalance(mostafaSum);
-  setMidoBalance(midoSum);
-  setDoubleMBalance(doubleMSum);
-}
+  // إذا تم تفعيل التصفير والفترة الحالية، نظهر القيم مصفرّة
+  if (isResetActive && isCurrentPeriod) {
+    setProfit(0);
+    setMostafaBalance(0);
+    setMidoBalance(0);
+    setDoubleMBalance(0);
+  } else {
+    setProfit(remainingProfit);
+    setMostafaBalance(mostafaSum);
+    setMidoBalance(midoSum);
+    setDoubleMBalance(doubleMSum);
+  }
 
-
-  }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, profitAfterReset, mostafaAfterReset, midoAfterReset, doubleMAfterReset]);
+}, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, isResetActive]);
 
   const handleWithdraw = async () => {
     if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
@@ -232,8 +231,14 @@ if (isResetActive && isCurrentPeriod) {
     fetchData();
   };
 
-  const handleResetProfit = () => {
+const handleResetProfit = () => {
+  // تفعيل التصفير مباشرة
   setIsResetActive(true);
+  // تصفير الأرباح مباشرة عند الضغط
+  setProfit(0);
+  setMostafaBalance(0);
+  setMidoBalance(0);
+  setDoubleMBalance(0);
 };
 
 
