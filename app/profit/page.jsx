@@ -34,7 +34,7 @@ export default function Profit() {
   const [addCashAmount, setAddCashAmount] = useState("");
   const [addCashNotes, setAddCashNotes] = useState("");
 
-  // حالات الأرباح بعد التصفير
+  // حالات الأرباح بعد التصفير (محفوظة إن احتجت لاحقًا)
   const [profitAfterReset, setProfitAfterReset] = useState(null);
   const [mostafaAfterReset, setMostafaAfterReset] = useState(null);
   const [midoAfterReset, setMidoAfterReset] = useState(null);
@@ -79,17 +79,16 @@ export default function Profit() {
   };
 
   useEffect(() => {
-  if (typeof window !== 'undefined') {
-    setShop(localStorage.getItem('shop'));
+    if (typeof window !== 'undefined') {
+      setShop(localStorage.getItem('shop'));
 
-    const savedHiddenState = localStorage.getItem('hideFinance');
-    if (savedHiddenState !== null) setIsHidden(savedHiddenState === 'true');
+      const savedHiddenState = localStorage.getItem('hideFinance');
+      if (savedHiddenState !== null) setIsHidden(savedHiddenState === 'true');
 
-    const savedReset = localStorage.getItem("resetAt");
-    if (savedReset) setResetAt(new Date(savedReset));
-  }
-}, []);
-
+      const savedReset = localStorage.getItem("resetAt");
+      if (savedReset) setResetAt(new Date(savedReset));
+    }
+  }, []);
 
   const toggleHidden = () => {
     setIsHidden(prev => {
@@ -98,20 +97,24 @@ export default function Profit() {
       return newState;
     });
   };
+
   const fetchReset = async () => {
-  if (!shop) return;
+    if (!shop) return;
 
-  const resetSnap = await getDocs(query(collection(db, "reset"), where("shop", "==", shop)));
-  const resets = resetSnap.docs.map(doc => doc.data());
+    const resetSnap = await getDocs(query(collection(db, "reset"), where("shop", "==", shop)));
+    const resets = resetSnap.docs.map(doc => doc.data());
 
-  if (resets.length > 0) {
-    // ناخد آخر تصفير
-    const latestReset = resets.reduce((prev, curr) => 
-      prev.resetAt.seconds > curr.resetAt.seconds ? prev : curr
-    );
-    setResetAt(latestReset.resetAt.toDate ? latestReset.resetAt.toDate() : new Date(latestReset.resetAt));
-  }
-};
+    if (resets.length > 0) {
+      // ناخد آخر تصفير - قد يكون Timestamp أو Date
+      const latestReset = resets.reduce((prev, curr) => {
+        const prevTs = prev.resetAt?.seconds ? prev.resetAt.seconds : (new Date(prev.resetAt)).getTime() / 1000;
+        const currTs = curr.resetAt?.seconds ? curr.resetAt.seconds : (new Date(curr.resetAt)).getTime() / 1000;
+        return prevTs > currTs ? prev : curr;
+      });
+      const val = latestReset.resetAt;
+      setResetAt(val?.toDate ? val.toDate() : new Date(val));
+    }
+  };
 
   const fetchData = async () => {
     if (!shop) return;
@@ -128,90 +131,89 @@ export default function Profit() {
     const deletedSnap = await getDocs(query(collection(db, "deletedProducts"), where("shop", "==", shop)));
     const deletedArr = deletedSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     setDeletedProducts(deletedArr);
-    const totalDeleted = deletedArr.reduce((sum, p) => sum + ((p.buyPrice || 0) * (p.deletedTotalQty || 0)), 0);
+    const totalDeleted = deletedArr.reduce((sum, p) => sum + ((Number(p.buyPrice) || 0) * (Number(p.deletedTotalQty) || 0)), 0);
     setDeletedTotal(totalDeleted);
   };
 
   useEffect(() => {
-  if (!shop) return;
+    if (!shop) return;
 
-  fetchData();      // البيانات العادية
-  fetchReset();     // جلب آخر تصفير
-}, [shop]);
+    fetchData();      // البيانات العادية
+    fetchReset();     // جلب آخر تصفير
+  }, [shop]);
 
-useEffect(() => {
-  if (!shop) return;
+  useEffect(() => {
+    if (!shop) return;
 
-  const from = dateFrom ? new Date(dateFrom + "T00:00:00") : new Date("1970-01-01");
-  const to = dateTo ? new Date(dateTo + "T23:59:59") : new Date();
+    const from = dateFrom ? new Date(dateFrom + "T00:00:00") : new Date("1970-01-01");
+    const to = dateTo ? new Date(dateTo + "T23:59:59") : new Date();
 
-  // فلترة البيانات حسب التواريخ
-  const filteredDaily = dailyProfitData.filter(d => {
-    const dDate = parseDate(d.date) || parseDate(d.createdAt);
-    return dDate && dDate >= from && dDate <= to;
-  });
+    // إذا المستخدِم محدد فترة يدويًا نستخدمها كما هي (حتى لو تشمل قبل reset)
+    // أما لو مفيش فلترة يدويّة فنعرض البيانات من بعد reset (لو موجود)
+    const isUsingDateFilter = Boolean(dateFrom || dateTo);
+    const effectiveFrom = isUsingDateFilter ? from : (resetAt ? resetAt : from);
 
-  const filteredReports = reports.filter(r => {
-    const rDate = parseDate(r.date) || parseDate(r.createdAt);
-    return rDate && rDate >= from && rDate <= to;
-  });
+    // فلترة البيانات حسب التواريخ (مع مراعاة effectiveFrom)
+    const filteredDaily = dailyProfitData.filter(d => {
+      const dDate = parseDate(d.date) || parseDate(d.createdAt);
+      return dDate && dDate >= effectiveFrom && dDate <= to;
+    });
 
-  const filteredWithdraws = withdraws.filter(w => {
-    const wDate = parseDate(w.date) || parseDate(w.createdAt);
-    if (!wDate) return true;
-    return wDate >= from && wDate <= to;
-  });
+    const filteredReports = reports.filter(r => {
+      const rDate = parseDate(r.date) || parseDate(r.createdAt);
+      return rDate && rDate >= effectiveFrom && rDate <= to;
+    });
 
-  // 1️⃣ حساب الخزنة دائمًا
-  const totalMasrofat = filteredDaily.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
-  const totalCash = filteredDaily.reduce((sum, d) => sum + (d.totalSales || 0), 0);
-  let remainingCash = totalCash - totalMasrofat;
-  filteredWithdraws.forEach(w => {
-    const remaining = (w.amount || 0) - (w.paid || 0);
-    remainingCash -= remaining;
-  });
-  setCashTotal(remainingCash);
+    const filteredWithdraws = withdraws.filter(w => {
+      const wDate = parseDate(w.date) || parseDate(w.createdAt);
+      if (!wDate) return false; // لا نحتسب عناصر بلا تاريخ هنا
+      return wDate >= effectiveFrom && wDate <= to;
+    });
 
-  // 2️⃣ حساب الأرباح
-  let remainingProfit = 0;
-  filteredReports.forEach(r => {
-    if (!r.cart || !Array.isArray(r.cart)) return;
-    const reportProfit = r.cart.reduce((s, item) => s + ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0), 0);
-    remainingProfit += reportProfit;
-  });
+    // 1️⃣ حساب الخزنة دائمًا (لا تتأثر بالتصفير)
+    const totalMasrofat = filteredDaily.reduce((sum, d) => sum + (Number(d.totalMasrofat) || 0), 0);
+    const totalCash = filteredDaily.reduce((sum, d) => sum + (Number(d.totalSales) || 0), 0);
+    let remainingCash = totalCash - totalMasrofat;
+    filteredWithdraws.forEach(w => {
+      const remaining = (Number(w.amount) || 0) - (Number(w.paid) || 0);
+      remainingCash -= remaining;
+    });
+    setCashTotal(remainingCash);
 
-  // 3️⃣ خصم السحوبات قبل التصفير
-  let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
-  filteredWithdraws.forEach(w => {
-    const wDate = parseDate(w.date) || parseDate(w.createdAt);
-    const remaining = (w.amount || 0) - (w.paid || 0);
-    if (!resetAt || wDate < resetAt) {
-      remainingProfit -= remaining; // خصم السحوبات قبل reset
+    // 2️⃣ حساب الأرباح (من بعد effectiveFrom)
+    let remainingProfit = 0;
+    filteredReports.forEach(r => {
+      if (!r.cart || !Array.isArray(r.cart)) return;
+      const reportProfit = r.cart.reduce((s, item) => {
+        const sell = Number(item.sellPrice) || 0;
+        const buy = Number(item.buyPrice) || 0;
+        const qty = Number(item.quantity) || 0;
+        return s + (sell - buy) * qty;
+      }, 0);
+      remainingProfit += reportProfit;
+    });
+
+    // 3️⃣ حساب أرصدة الأشخاص (مصطفى/ميدو/دبل M) وخصم السحوبات من الربح
+    let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
+    filteredWithdraws.forEach(w => {
+      const remaining = (Number(w.amount) || 0) - (Number(w.paid) || 0);
+      remainingProfit -= remaining; // نطرح السحوبات التي ضمن الـ range (وبالتالي بعد reset لو نطبّق reset)
       if (w.person === "مصطفى") mostafaSum += remaining;
       if (w.person === "ميدو") midoSum += remaining;
       if (w.person === "دبل M") doubleMSum += remaining;
-    }
-  });
+    });
 
-  // 4️⃣ خصم returnedProfit قبل التصفير
-  const returnedProfit = filteredDaily.reduce((sum, d) => {
-    const dDate = parseDate(d.date) || parseDate(d.createdAt);
-    if (!resetAt || dDate < resetAt) return sum + (d.returnedProfit || 0);
-    return sum;
-  }, 0);
-  remainingProfit -= returnedProfit;
+    // 4️⃣ خصم returnedProfit ضمن نفس الـ range
+    const returnedProfit = filteredDaily.reduce((sum, d) => sum + (Number(d.returnedProfit) || 0), 0);
+    remainingProfit -= returnedProfit;
 
-  // 5️⃣ تحديث الواجهة
-  setProfit(remainingProfit);
-  setMostafaBalance(mostafaSum);
-  setMidoBalance(midoSum);
-  setDoubleMBalance(doubleMSum);
+    // 5️⃣ تحديث الواجهة
+    setProfit(remainingProfit);
+    setMostafaBalance(mostafaSum);
+    setMidoBalance(midoSum);
+    setDoubleMBalance(doubleMSum);
 
-}, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, resetAt]);
-
-
-
-
+  }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, resetAt]);
 
   const handleWithdraw = async () => {
     if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
@@ -262,26 +264,25 @@ useEffect(() => {
     fetchData();
   };
 
-const handleResetProfit = async () => {
-  const confirmReset = confirm("هل أنت متأكد من تصفير الأرباح والأرصدة؟");
-  if (!confirmReset) return;
+  const handleResetProfit = async () => {
+    const confirmReset = confirm("هل أنت متأكد من تصفير الأرباح والأرصدة؟");
+    if (!confirmReset) return;
 
-  const now = new Date();
+    const now = Timestamp.now(); // نحفظ كتاريخ من نوع Timestamp
 
-  // حفظ التصفير في Firestore
-  await addDoc(collection(db, "reset"), {
-    shop,
-    resetAt: now,
-  });
+    // حفظ التصفير في Firestore
+    await addDoc(collection(db, "reset"), {
+      shop,
+      resetAt: now,
+    });
 
-  // حفظ التصفير محليًا
-  localStorage.setItem("resetAt", now.toISOString());
+    // حفظ التصفير محليًا (iso) لعرض فوري
+    const nowDate = new Date();
+    localStorage.setItem("resetAt", nowDate.toISOString());
 
-  setResetAt(now); // الـ useEffect رح يتولى تحديث الأرباح والسحوبات تلقائيًا
-};
-
-
-
+    // setResetAt يأخذ Date object علشان useEffect يشتغل فورًا
+    setResetAt(nowDate);
+  };
 
   const handleDeleteWithdraw = async (id) => {
     if (!id) return;
@@ -316,30 +317,31 @@ const handleResetProfit = async () => {
     setWithdraws(prev => prev.map(w => w.id === payWithdrawId ? { ...w, paid: (w.paid || 0) + amount } : w));
     setShowPayPopup(false);
   };
+
   const handleClearDeletedProducts = async () => {
-  if (!shop) return alert("لم يتم العثور على المتجر");
+    if (!shop) return alert("لم يتم العثور على المتجر");
 
-  const sure = confirm("هل أنت متأكد من حذف كل المنتجات المرتجعة؟");
-  if (!sure) return;
+    const sure = confirm("هل أنت متأكد من حذف كل المنتجات المرتجعة؟");
+    if (!sure) return;
 
-  try {
-    const q = query(collection(db, "deletedProducts"), where("shop", "==", shop));
-    const snap = await getDocs(q);
+    try {
+      const q = query(collection(db, "deletedProducts"), where("shop", "==", shop));
+      const snap = await getDocs(q);
 
-    const deletePromises = snap.docs.map(d => deleteDoc(doc(db, "deletedProducts", d.id)));
+      const deletePromises = snap.docs.map(d => deleteDoc(doc(db, "deletedProducts", d.id)));
 
-    await Promise.all(deletePromises);
+      await Promise.all(deletePromises);
 
-    // تحديث الواجهة
-    setDeletedProducts([]);
-    setDeletedTotal(0);
+      // تحديث الواجهة
+      setDeletedProducts([]);
+      setDeletedTotal(0);
 
-    alert("تم حذف جميع المنتجات المرتجعة بنجاح ✔");
-  } catch (err) {
-    console.error("خطأ أثناء حذف المرتجعات:", err);
-    alert("حدث خطأ أثناء الحذف");
-  }
-};
+      alert("تم حذف جميع المنتجات المرتجعة بنجاح ✔");
+    } catch (err) {
+      console.error("خطأ أثناء حذف المرتجعات:", err);
+      alert("حدث خطأ أثناء الحذف");
+    }
+  };
 
 
   return (
