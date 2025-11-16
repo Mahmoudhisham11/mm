@@ -244,7 +244,7 @@ const handleWithdraw = async () => {
   if (amount > cashTotal) return alert("رصيد الخزنة غير كافي");
 
   const newDate = formatDate(new Date());
-  const docRef = await addDoc(collection(db, "withdraws"), {
+  await addDoc(collection(db, "withdraws"), {
     shop,
     person: withdrawPerson,
     amount,
@@ -254,21 +254,8 @@ const handleWithdraw = async () => {
     paid: 0
   });
 
-  // تحديث withdraws
-  setWithdraws(prev => [
-    ...prev,
-    { id: docRef.id, person: withdrawPerson, amount, notes: withdrawNotes, date: newDate, createdAt: Timestamp.now(), paid: 0 },
-  ]);
-
-  // تحديث الربح ورصيد الشخص فورًا مع حماية ضد القيم السالبة
-  setProfit(prev => {
-    const newProfit = prev - amount;
-    return newProfit < 0 ? 0 : newProfit;
-  });
-
-  if (withdrawPerson === "مصطفى") setMostafaBalance(prev => prev + amount);
-  if (withdrawPerson === "ميدو") setMidoBalance(prev => prev + amount);
-  if (withdrawPerson === "دبل M") setDoubleMBalance(prev => prev + amount);
+  // جلب البيانات مرة تانية بعد التحديث
+  await fetchData();
 
   setWithdrawPerson("");
   setWithdrawAmount("");
@@ -277,26 +264,30 @@ const handleWithdraw = async () => {
 };
 
 
-  const handleAddCash = async () => {
-    const amount = Number(addCashAmount);
-    if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
 
-    const newDate = formatDate(new Date());
-    await addDoc(collection(db, "dailyProfit"), {
-      shop,
-      totalSales: amount,
-      totalMasrofat: 0,
-      returnedProfit: 0,
-      notes: addCashNotes,
-      date: newDate,
-      createdAt: Timestamp.now(),
-    });
+const handleAddCash = async () => {
+  const amount = Number(addCashAmount);
+  if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
 
-    setAddCashAmount("");
-    setAddCashNotes("");
-    setShowAddCashPopup(false);
-    fetchData();
-  };
+  const newDate = formatDate(new Date());
+  await addDoc(collection(db, "dailyProfit"), {
+    shop,
+    totalSales: amount,
+    totalMasrofat: 0,
+    returnedProfit: 0,
+    notes: addCashNotes,
+    date: newDate,
+    createdAt: Timestamp.now(),
+  });
+
+  // تحديث البيانات بعد الإضافة
+  await fetchData();
+
+  setAddCashAmount("");
+  setAddCashNotes("");
+  setShowAddCashPopup(false);
+};
+
 
   const handleResetProfit = async () => {
     const confirmReset = confirm("هل أنت متأكد من تصفير الأرباح والأرصدة؟");
@@ -335,7 +326,7 @@ const handleWithdraw = async () => {
     setShowPayPopup(true);
   };
 
-  const handlePay = async () => {
+const handlePay = async () => {
   const amount = Number(payAmount);
   if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
 
@@ -348,23 +339,12 @@ const handleWithdraw = async () => {
   const withdrawRef = doc(db, "withdraws", payWithdrawId);
   await updateDoc(withdrawRef, { paid: (withdraw.paid || 0) + amount });
 
-  setWithdraws(prev => prev.map(w => {
-    if (w.id === payWithdrawId) {
-      const newPaid = (w.paid || 0) + amount;
-      const maxPaid = w.amount;
-      return { ...w, paid: newPaid > maxPaid ? maxPaid : newPaid };
-    }
-    return w;
-  }));
-
-  // حماية الربح من أن يصبح سالبًا
-  setProfit(prev => {
-    const newProfit = prev + amount; // لأن الدفع يقلل الدين، الربح يزيد
-    return newProfit < 0 ? 0 : newProfit;
-  });
+  // تحديث البيانات بعد السداد
+  await fetchData();
 
   setShowPayPopup(false);
 };
+
 
 
   const handleClearDeletedProducts = async () => {
