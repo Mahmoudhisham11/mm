@@ -356,9 +356,9 @@ function Debts() {
                 value={form.debtDirection}
                 onChange={(e) => setForm({ ...form, debtDirection: e.target.value })}
               >
-                <option value="">الدين لمين</option>
-                <option value="ليك">ليك</option>
+                <option value="ليك">ليك فلوس</option>
                 <option value="بضاعة اجل">بضاعة اجل</option>
+                <option value="بضاعة اجل">بضاعة كاش</option>
               </select>
             </div>
           </div>

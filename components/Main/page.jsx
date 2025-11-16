@@ -9,7 +9,7 @@ import { FaUser } from "react-icons/fa";
 import { FaPhone } from "react-icons/fa";
 import { FaBars } from "react-icons/fa6";
 import {
-  collection, query, where, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDocs, getDoc, writeBatch,Timestamp
+  collection, query, where, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDocs, getDoc, writeBatch,Timestamp,runTransaction 
 } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import { useRouter } from "next/navigation";
@@ -701,7 +701,7 @@ useEffect(() => {
   // -------------------------
   // handleSaveReport: now we trust that stock was decremented when adding; still we verify availability as safety
   // -------------------------
-  const handleSaveReport = async () => {
+const handleSaveReport = async () => {
   if (isSaving) return;
   setIsSaving(true);
 
@@ -715,6 +715,22 @@ useEffect(() => {
   }
 
   try {
+
+    // 🧾 جلب رقم الفاتورة التسلسلي من Firestore
+    const counterRef = doc(db, "counters", "invoiceCounter");
+    const invoiceNumber = await runTransaction(db, async (transaction) => {
+      const counterSnap = await transaction.get(counterRef);
+      let currentNumber = 0;
+
+      if (counterSnap.exists()) {
+        currentNumber = counterSnap.data().lastInvoiceNumber || 0;
+      }
+
+      const newNumber = currentNumber + 1;
+      transaction.set(counterRef, { lastInvoiceNumber: newNumber }, { merge: true });
+      return newNumber;
+    });
+
     // تحقق من توفر المنتجات قبل الحفظ
     for (const item of cart) {
       if (item.originalProductId) {
@@ -762,7 +778,9 @@ useEffect(() => {
       return sum + itemProfit;
     }, 0);
 
+    // 🔥 البيانات بعد إضافة رقم الفاتورة
     const saleData = {
+      invoiceNumber,   // ← رقم الفاتورة الجديد
       cart,
       clientName,
       phone,
@@ -783,6 +801,7 @@ useEffect(() => {
     // 🗂️ حفظ آخر فاتورة محليًا
     if (typeof window !== "undefined") {
       localStorage.setItem("lastInvoice", JSON.stringify({
+        invoiceNumber,
         cart,
         clientName,
         phone,
@@ -821,6 +840,7 @@ useEffect(() => {
   router.push('/resete');
 };
 
+
 const handleCloseDay = async () => {
   try {
     const today = new Date();
@@ -855,17 +875,27 @@ const handleCloseDay = async () => {
       totalSales += data.total || 0;
     });
 
-    // 4️⃣ حساب إجمالي المصروفات الخاصة باليوم فقط
+    // 4️⃣ حساب إجمالي المصروفات الخاصة باليوم والمصروفات من المرتجعات
+    
     let totalMasrofat = 0;
+    let returnedProfit = 0;
     masrofatSnapshot.forEach(docSnap => {
       const data = docSnap.data();
       if (data.date === todayStr) {
-        totalMasrofat += data.masrof || 0;
+        if (data.reason === "فاتورة مرتجع") {
+          returnedProfit += data.profit || 0; // ربح المرتجع
+        } else {
+          totalMasrofat += data.masrof || 0; // المصروفات العادية
+        }
       }
     });
+    
+    let netMasrof = 0
+    masrofatSnapshot.forEach(docSnap => {
+      const data = docSnap.data()
+      netMasrof += data.masrof
+    })
 
-    // 5️⃣ حساب صافي اليوم
-    const netTotal = totalSales - totalMasrofat;
 
     // 6️⃣ إنشاء Batch لحفظ التقارير وحذف المبيعات
     const batch = writeBatch(db);
@@ -883,8 +913,8 @@ const handleCloseDay = async () => {
       shop,
       date: todayStr,
       totalSales,
-      totalMasrofat,
-      netTotal,
+      totalMasrofat: Number(netMasrof),
+      returnedProfit,
       createdAt: Timestamp.now()
     };
     const profitRef = doc(collection(db, "dailyProfit"));
@@ -907,7 +937,6 @@ const handleCloseDay = async () => {
     alert("حدث خطأ أثناء تقفيل اليوم");
   }
 };
-
 
 
   const handleDeleteInvoice = async () => {
@@ -940,8 +969,9 @@ const handleCloseDay = async () => {
   };
 
   const filteredInvoices = dailySales.filter(inv =>
-    inv.clientName?.toLowerCase().includes(searchClient.toLowerCase())
-  );
+  inv.invoiceNumber?.toString().includes(searchClient)
+);
+
 
 // ✅ حساب إجمالي كل المصروفات
 const totalMasrofat = masrofat.reduce((sum, i) => sum + Number(i.masrof || 0), 0);
@@ -1157,7 +1187,7 @@ const handleReturnProduct = async (item, invoiceId) => {
             <IoMdSearch />
             <input
               type="text"
-              placeholder="ابحث باسم العميل..."
+              placeholder="ابحث برقم الفاتورة..."
               value={searchClient}
               onChange={(e) => setSearchClient(e.target.value)}
             />
@@ -1176,12 +1206,12 @@ const handleReturnProduct = async (item, invoiceId) => {
               <p>{isHidden? '****' : filteredInvoices.length > 0 ? totalSales : 0} جنيه</p>
             </div>
             <div className={styles.card}>
-              <h4>صافي المبيع </h4>
-              <p>{isHidden? '****' : filteredInvoices.length > 0 ? finallyTotal : 0} جنيه</p>
-            </div>
-            <div className={styles.card}>
               <h4>إجمالي المصروفات</h4>
               <p>{isHidden? '****' : totalMasrofat} جنيه</p>
+            </div>
+            <div className={styles.card}>
+              <h4>صافي المبيع </h4>
+              <p>{isHidden? '****' : filteredInvoices.length > 0 ? finallyTotal : 0} جنيه</p>
             </div>
             <div className={styles.card}>
               <h4>أنشط موظف</h4>
@@ -1196,6 +1226,7 @@ const handleReturnProduct = async (item, invoiceId) => {
               <table>
               <thead>
                 <tr>
+                  <th>رقم الفاتورة</th>
                   <th>العميل</th>
                   <th>رقم الهاتف</th>
                   <th>الموظف</th>
@@ -1210,6 +1241,7 @@ const handleReturnProduct = async (item, invoiceId) => {
                     onClick={() => setSelectedInvoice(invoice)}
                     className={styles.tableRow}
                   >
+                    <td>{invoice.invoiceNumber || "بدون اسم"}</td>
                     <td>{invoice.clientName || "بدون اسم"}</td>
                     <td>{invoice.phone || "-"}</td>
                     <td>{invoice.employee || "غير محدد"}</td>

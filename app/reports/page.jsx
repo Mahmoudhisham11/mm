@@ -12,7 +12,8 @@ import {
   doc,
   updateDoc,
   getDoc,
-  deleteDoc
+  deleteDoc,
+  Timestamp
 } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import * as XLSX from "xlsx";
@@ -31,10 +32,13 @@ function Reports() {
   const [expensesInRange, setExpensesInRange] = useState(0);
   const [profitInRange, setProfitInRange] = useState(0);
   const [searchPhone, setSearchPhone] = useState("");
+  const [searchInvoiceNumber, setSearchInvoiceNumber] = useState(""); // NEW: search by invoice number
   const [selectedReport, setSelectedReport] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [auth, setAuth] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [showReturns, setShowReturns] = useState(false)
+  const [returnsList, setReturnsList] = useState([])
   const shop = typeof window !== "undefined" ? localStorage.getItem("shop") : "";
 
 
@@ -65,8 +69,7 @@ function Reports() {
     checkLock()
   }, [])
 
-  // Helper: convert Firestore timestamp or date-like to milliseconds
-    // Helper: convert Firestore timestamp OR Arabic date string to milliseconds
+  // Helper: convert Firestore timestamp OR Arabic date string to milliseconds
   const toMillis = (dateField) => {
     if (!dateField) return null;
 
@@ -97,7 +100,7 @@ function Reports() {
   };
 
 
-  // fetch all reports for the shop (we'll filter by date range locally)
+  // fetch all reports for the shop
   useEffect(() => {
     if (!shop) return;
     const q = query(collection(db, "reports"), where("shop", "==", shop));
@@ -108,7 +111,7 @@ function Reports() {
     return () => unsubscribe();
   }, [shop]);
 
-  // fetch all masrofat for the shop (we'll filter by date range locally)
+  // fetch all masrofat
   useEffect(() => {
     if (!shop) return;
     const q = query(collection(db, "masrofat"), where("shop", "==", shop));
@@ -118,22 +121,81 @@ function Reports() {
     });
     return () => unsubscribe();
   }, [shop]);
-    const sumColorsQty = (colors = []) => colors.reduce((s, c) => s + (Number(c.quantity || 0)), 0);
-    const sumSizesQty = (sizes = []) => sizes.reduce((s, c) => s + (Number(c.quantity || 0)), 0);
-    const computeNewTotalQuantity = (colors, sizes, fallbackOldQuantity = 0) => {
+
+  // fetch all returns
+  useEffect(() => {
+    if (!shop) return;
+    const q = query(collection(db, "returns"), where("shop", "==", shop));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const all = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setReturnsList(all);
+    });
+    return () => unsubscribe();
+  }, [shop]);
+
+  const sumColorsQty = (colors = []) => colors.reduce((s, c) => s + (Number(c.quantity || 0)), 0);
+  const sumSizesQty = (sizes = []) => sizes.reduce((s, c) => s + (Number(c.quantity || 0)), 0);
+  const computeNewTotalQuantity = (colors, sizes, fallbackOldQuantity = 0) => {
     const cSum = Array.isArray(colors) ? sumColorsQty(colors) : 0;
     const sSum = Array.isArray(sizes) ? sumSizesQty(sizes) : 0;
     if (cSum > 0 && sSum > 0) {
-      // prefer the larger sum to avoid accidentally deleting stock
       return Math.max(cSum, sSum);
     }
     if (cSum > 0) return cSum;
     if (sSum > 0) return sSum;
     return fallbackOldQuantity;
   };
-  // Whenever reports, fromDate, toDate, filterType or searchPhone change, compute displayedReports and totals
+
+  // compute displayedReports
   useEffect(() => {
-    // require both fromDate and toDate to show results (otherwise keep table empty)
+    // If user is searching by invoice number, bypass date requirement and filter by invoiceNumber
+    if (searchInvoiceNumber?.trim()) {
+      const qStr = searchInvoiceNumber.trim();
+      const filteredByInvoice = reports
+        .filter(r => {
+          const invNum = (r.invoiceNumber !== undefined && r.invoiceNumber !== null) ? String(r.invoiceNumber) : "";
+          return invNum.includes(qStr);
+        })
+        // still apply phone search and type filter
+        .map((report) => {
+          if (filterType === "all") return report;
+          return { ...report, cart: report.cart?.filter((item) => item.type === filterType) || [] };
+        })
+        .filter((report) => (report.cart?.length ?? 0) > 0 && (searchPhone.trim() ? (report.phone?.toString().includes(searchPhone.trim())) : true));
+
+      // compute totals for this filtered set
+      let totalSales = 0;
+      let totalProfit = 0;
+      filteredByInvoice.forEach((report) => {
+        const cart = report.cart || [];
+        const cartTotal = cart.reduce((s, it) => s + (Number(it.sellPrice || 0) * Number(it.quantity || 0)), 0);
+        const reportTotal = Number(report.total ?? (cartTotal - (Number(report.discount || 0))));
+        totalSales += reportTotal;
+        let reportProfit = 0;
+        const discountValue = Number(report.discount || 0);
+        cart.forEach((it) => {
+          const qty = Number(it.quantity || 0);
+          const sell = Number(it.sellPrice || 0);
+          const buy = Number(it.buyPrice ?? it.productPrice ?? 0);
+          const itemGross = sell * qty;
+          const itemDiscount = cartTotal > 0 ? (itemGross / cartTotal) * discountValue : 0;
+          const itemNetRevenue = itemGross - itemDiscount;
+          const itemProfit = itemNetRevenue - (buy * qty);
+          reportProfit += itemProfit;
+        });
+        totalProfit += reportProfit;
+      });
+
+      setDisplayedReports(filteredByInvoice);
+      setTotalAmount(totalSales);
+      // expenses should still come from masrofat within date range — but since invoice search bypasses date filter,
+      // we will set expenses to 0 (or you can choose to compute across all masrofat matching shop).
+      setExpensesInRange(0);
+      setProfitInRange(totalProfit);
+      return;
+    }
+
+    // Normal behavior: require both fromDate and toDate
     if (!fromDate || !toDate) {
       setDisplayedReports([]);
       setTotalAmount(0);
@@ -142,8 +204,6 @@ function Reports() {
       return;
     }
 
-    // convert user input dates to milliseconds range (inclusive)
-    // fromDate at 00:00:00, toDate at 23:59:59.999 local
     let from = new Date(fromDate);
     from.setHours(0, 0, 0, 0);
     const fromMs = from.getTime();
@@ -151,19 +211,16 @@ function Reports() {
     to.setHours(23, 59, 59, 999);
     const toMs = to.getTime();
 
-    // filter reports by date range
     let filtered = reports.filter((report) => {
       const repMs = toMillis(report.date);
       if (!repMs) return false;
       return repMs >= fromMs && repMs <= toMs;
     });
 
-    // filter by searchPhone if provided
     if (searchPhone.trim()) {
       filtered = filtered.filter((r) => r.phone?.toString().includes(searchPhone.trim()));
     }
 
-    // filter by type if needed (and ensure we only keep reports that still have cart items after filtering)
     filtered = filtered
       .map((report) => {
         if (filterType === "all") return report;
@@ -174,40 +231,29 @@ function Reports() {
       })
       .filter((report) => (report.cart?.length ?? 0) > 0);
 
-    // compute totals and profit for displayed reports
     let totalSales = 0;
     let totalProfit = 0;
 
     filtered.forEach((report) => {
-      // compute reportCartTotal (sum of sellPrice * qty)
       const cart = report.cart || [];
       const cartTotal = cart.reduce((s, it) => s + (Number(it.sellPrice || 0) * Number(it.quantity || 0)), 0);
-
-      // use report.total if available, otherwise derive from cartTotal minus report.discount
       const reportTotal = Number(report.total ?? (cartTotal - (Number(report.discount || 0))));
       totalSales += reportTotal;
-
-      // compute profit per report:
-      // distribute discount proportionally across items (if any discount)
       let reportProfit = 0;
       const discountValue = Number(report.discount || 0);
-      // avoid division by zero
       cart.forEach((it) => {
         const qty = Number(it.quantity || 0);
         const sell = Number(it.sellPrice || 0);
         const buy = Number(it.buyPrice ?? it.productPrice ?? 0);
         const itemGross = sell * qty;
-
         const itemDiscount = cartTotal > 0 ? (itemGross / cartTotal) * discountValue : 0;
         const itemNetRevenue = itemGross - itemDiscount;
         const itemProfit = itemNetRevenue - (buy * qty);
         reportProfit += itemProfit;
       });
-
       totalProfit += reportProfit;
     });
 
-    // compute expenses in the same range from masrofatList
     const expenses = masrofatList.reduce((s, exp) => {
       const expMs = toMillis(exp.date);
       if (!expMs) return s;
@@ -221,129 +267,123 @@ function Reports() {
     setTotalAmount(totalSales);
     setExpensesInRange(expenses);
     setProfitInRange(totalProfit);
-  }, [reports, masrofatList, fromDate, toDate, filterType, searchPhone]);
+  }, [reports, masrofatList, fromDate, toDate, filterType, searchPhone, searchInvoiceNumber]);
 
-  // Excel export for displayedReports (behaves on current visible rows)
+  // compute displayedReturns
+  const displayedReturns = returnsList.filter((ret) => {
+    if (!fromDate || !toDate) {
+      // if no date filter, show all returns (or you could return [] if you prefer)
+      return true;
+    }
+    const fromMs = new Date(fromDate).setHours(0, 0, 0, 0);
+    const toMs = new Date(toDate).setHours(23, 59, 59, 999);
+    const retMs = toMillis(ret.returnDate);
+    if (!retMs) return false;
+    return retMs >= fromMs && retMs <= toMs;
+  });
+
+  // Excel export
   const exportToExcel = async () => {
-  if (!fromDate || !toDate) {
-    alert("رجاءً اختر فترة (من - إلى) قبل التصدير");
-    return;
-  }
+    if (!fromDate || !toDate) {
+      alert("رجاءً اختر فترة (من - إلى) قبل التصدير");
+      return;
+    }
 
-  const fromTime = new Date(fromDate).setHours(0, 0, 0, 0);
-  const toTime = new Date(toDate).setHours(23, 59, 59, 999);
+    const fromTime = new Date(fromDate).setHours(0, 0, 0, 0);
+    const toTime = new Date(toDate).setHours(23, 59, 59, 999);
 
-  const exportProducts = [];
-  let totalSales = 0;
-  let totalProfit = 0;
+    const exportProducts = [];
+    let totalSales = 0;
+    let totalProfit = 0;
 
-  // 🟦 1. المنتجات من التقارير (reports)
-  displayedReports.forEach((report) => {
-    report.cart?.forEach((item) => {
-      const itemDate = new Date(report.date.seconds * 1000).getTime();
-      if (itemDate >= fromTime && itemDate <= toTime) {
-        const itemTotal = item.sellPrice * item.quantity;
-        const itemProfit = (item.sellPrice - (item.buyPrice || 0)) * item.quantity;
-        totalSales += itemTotal;
-        totalProfit += itemProfit;
+    displayedReports.forEach((report) => {
+      report.cart?.forEach((item) => {
+        const itemDate = new Date(report.date.seconds * 1000).getTime();
+        if (itemDate >= fromTime && itemDate <= toTime) {
+          const itemTotal = item.sellPrice * item.quantity;
+          const itemProfit = (item.sellPrice - (item.buyPrice || 0)) * item.quantity;
+          totalSales += itemTotal;
+          totalProfit += itemProfit;
 
-        exportProducts.push({
-          "اسم المنتج": item.name,
-          "الكمية": item.quantity,
-          "سعر البيع": item.sellPrice,
-          "سعر الشراء": item.buyPrice,
-          "الربح": itemProfit,
-          "الخصم": report.discount ?? 0,
-          "اسم العميل": report.clientName,
-          "رقم الهاتف": report.phone,
-          "الموظف": report.employee,
-          "المحل": report.shop,
-          "التاريخ": new Date(report.date.seconds * 1000).toLocaleDateString("ar-EG"),
+          exportProducts.push({
+            "اسم المنتج": item.name,
+            "الكمية": item.quantity,
+            "سعر البيع": item.sellPrice,
+            "سعر الشراء": item.buyPrice,
+            "الربح": itemProfit,
+            "الخصم": report.discount ?? 0,
+            "اسم العميل": report.clientName,
+            "رقم الهاتف": report.phone,
+            "الموظف": report.employee,
+            "المحل": report.shop,
+            "التاريخ": new Date(report.date.seconds * 1000).toLocaleDateString("ar-EG"),
+          });
+        }
+      });
+    });
+
+    const expensesSnapshot = await getDocs(collection(db, "masrofat"));
+    const exportExpenses = [];
+    let totalExpenses = 0;
+
+    expensesSnapshot.forEach((docSnap) => {
+      const exp = docSnap.data();
+      const dateStr = exp.date;
+      if (!dateStr) return;
+      const normalized = dateStr.replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
+      const parts = normalized.split("/").map((p) => p.replace(/[^\d]/g, ""));
+      if (parts.length === 3) {
+        const [day, month, year] = parts.map(Number);
+        const expTime = new Date(year, month - 1, day).getTime();
+        if (expTime >= fromTime && expTime <= toTime) {
+          totalExpenses += Number(exp.masrof) || 0;
+          exportExpenses.push({
+            "البيان": exp.reason || "-",
+            "القيمة": exp.masrof || 0,
+            "التاريخ": exp.date,
+            "المحل": exp.shop || "-",
+          });
+        }
+      }
+    });
+
+    const debtsSnapshot = await getDocs(collection(db, "debts"));
+    const exportDebts = [];
+    debtsSnapshot.forEach((docSnap) => {
+      const debt = docSnap.data();
+      const debtDate = debt.date?.seconds ? new Date(debt.date.seconds * 1000) : null;
+      if (!debtDate) return;
+      const debtTime = debtDate.getTime();
+      if (debtTime >= fromTime && debtTime <= toTime) {
+        exportDebts.push({
+          "اسم العميل": debt.clientName,
+          "المبلغ": debt.amount,
+          "التاريخ": debtDate.toLocaleDateString("ar-EG"),
+          "المحل": debt.shop || "-",
+          "ملاحظات": debt.notes || "-",
         });
       }
     });
-  });
 
-  // 🟨 2. المصروفات من masrofat
-  const expensesSnapshot = await getDocs(collection(db, "masrofat"));
-  const exportExpenses = [];
-  let totalExpenses = 0;
+    const summaryData = [
+      { البند: "إجمالي المبيعات", القيمة: totalSales },
+      { البند: "إجمالي المصروفات", القيمة: totalExpenses },
+      { البند: "إجمالي الربح", القيمة: totalProfit },
+      { البند: "صافي الربح", القيمة: totalProfit - totalExpenses },
+    ];
 
-  expensesSnapshot.forEach((docSnap) => {
-    const exp = docSnap.data();
-    const dateStr = exp.date;
-    if (!dateStr) return;
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(exportProducts), "Products");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(exportExpenses), "Expenses");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(exportDebts), "Debts");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryData), "Summary");
 
-    // تحويل التاريخ العربي إن وجد
-    const normalized = dateStr.replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
-    const parts = normalized.split("/").map((p) => p.replace(/[^\d]/g, ""));
-    if (parts.length === 3) {
-      const [day, month, year] = parts.map(Number);
-      const expTime = new Date(year, month - 1, day).getTime();
-      if (expTime >= fromTime && expTime <= toTime) {
-        totalExpenses += Number(exp.masrof) || 0;
-        exportExpenses.push({
-          "البيان": exp.reason || "-",
-          "القيمة": exp.masrof || 0,
-          "التاريخ": exp.date,
-          "المحل": exp.shop || "-",
-        });
-      }
-    }
-  });
+    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    const data = new Blob([excelBuffer], { type: "application/octet-stream" });
+    saveAs(data, `Reports_${new Date().toLocaleDateString("ar-EG")}.xlsx`);
 
-  // 🟥 3. الديون من debts
-  const debtsSnapshot = await getDocs(collection(db, "debts"));
-  const exportDebts = [];
-  debtsSnapshot.forEach((docSnap) => {
-    const debt = docSnap.data();
-    const debtDate = debt.date?.seconds ? new Date(debt.date.seconds * 1000) : null;
-    if (!debtDate) return;
-    const debtTime = debtDate.getTime();
-    if (debtTime >= fromTime && debtTime <= toTime) {
-      exportDebts.push({
-        "اسم العميل": debt.clientName,
-        "المبلغ": debt.amount,
-        "التاريخ": debtDate.toLocaleDateString("ar-EG"),
-        "المحل": debt.shop || "-",
-        "ملاحظات": debt.notes || "-",
-      });
-    }
-  });
-
-  
-
-  // 🟩 4. ملخص الإجماليات
-  const summaryData = [
-    { البند: "إجمالي المبيعات", القيمة: totalSales },
-    { البند: "إجمالي المصروفات", القيمة: totalExpenses },
-    { البند: "إجمالي الربح", القيمة: totalProfit },
-    { البند: "صافي الربح", القيمة: totalProfit - totalExpenses },
-  ];
-
-  // 🧾 إنشاء الملف Excel
-  const workbook = XLSX.utils.book_new();
-
-  // إنشاء الشيتات
-  const sheetProducts = XLSX.utils.json_to_sheet(exportProducts);
-  const sheetExpenses = XLSX.utils.json_to_sheet(exportExpenses);
-  const sheetDebts = XLSX.utils.json_to_sheet(exportDebts);
-  const sheetSummary = XLSX.utils.json_to_sheet(summaryData);
-
-  // إضافتها للملف
-  XLSX.utils.book_append_sheet(workbook, sheetProducts, "Products");
-  XLSX.utils.book_append_sheet(workbook, sheetExpenses, "Expenses");
-  XLSX.utils.book_append_sheet(workbook, sheetDebts, "Debts");
-  XLSX.utils.book_append_sheet(workbook, sheetSummary, "Summary");
-
-  // تصدير الملف
-  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-  const data = new Blob([excelBuffer], { type: "application/octet-stream" });
-  saveAs(data, `Reports_${new Date().toLocaleDateString("ar-EG")}.xlsx`);
-
-  alert("✅ تم تصدير الملف بنجاح!");
-};
-
+    alert("✅ تم تصدير الملف بنجاح!");
+  };
 
   // Drawer open/close
   const openDrawer = (report) => {
@@ -355,149 +395,48 @@ function Reports() {
     setIsDrawerOpen(false);
   };
 
-  // return product (same logic you had, adapted to reports collection)
-// ✅ دالة إرجاع المنتج وتحديث كل شيء
-const handleReturnProduct = async (item, invoiceId) => {
+  // Handle return
+  const handleReturnProduct = async (item, invoiceId) => {
   try {
-    // البحث عن المنتج وتحديثه أو إنشاؤه
-    let prodRef = null;
-    if (item.originalProductId) {
-      prodRef = doc(db, "lacosteProducts", item.originalProductId);
-    } else {
-      const q = query(
-        collection(db, "lacosteProducts"),
-        where("code", "==", item.code),
-        where("shop", "==", item.shop)
-      );
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) prodRef = snapshot.docs[0].ref;
+    const today = new Date();
+    const formattedDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+
+    const dailySalesQ = query(collection(db, "dailySales"), where("shop", "==", item.shop));
+    const dailySalesSnap = await getDocs(dailySalesQ);
+    let totalSales = 0;
+    dailySalesSnap.forEach(d => { const data = d.data(); totalSales += Number(data.total || 0); });
+
+    const itemTotalPrice = Number(item.sellPrice || 0) * Number(item.quantity || 0);
+    const itemProfit = (Number(item.sellPrice || 0) - Number(item.buyPrice || 0)) * Number(item.quantity || 0);
+
+    if (totalSales < itemTotalPrice) {
+      alert("⚠️ لا يمكن إرجاع هذا المنتج لأن إجمالي المبيعات أقل من سعره!");
+      return;
     }
-
-    if (prodRef) {
-      const prodSnap = await getDoc(prodRef);
-      if (prodSnap.exists()) {
-        const prodData = prodSnap.data();
-
-        let newColors = Array.isArray(prodData.colors)
-          ? prodData.colors.map(c => ({
-              color: c.color,
-              sizes: Array.isArray(c.sizes)
-                ? c.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) }))
-                : undefined,
-              quantity: c.quantity !== undefined ? Number(c.quantity) : undefined,
-            }))
-          : null;
-
-        let newSizes = Array.isArray(prodData.sizes)
-          ? prodData.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) }))
-          : null;
-
-        // 🔹 المنتج له لون
-        if (item.color) {
-          const found = newColors && newColors.find(c => c.color === item.color);
-          if (found) {
-            if (item.size && Array.isArray(found.sizes)) {
-              newColors = newColors.map(c => {
-                if (c.color === item.color) {
-                  const sizesCopy = c.sizes.map(s => ({ ...s }));
-                  const target = sizesCopy.find(s => s.size === item.size);
-                  if (target) {
-                    target.qty += Number(item.quantity || 0);
-                  } else {
-                    sizesCopy.push({ size: item.size, qty: Number(item.quantity || 0) });
-                  }
-                  return { ...c, sizes: sizesCopy };
-                }
-                return c;
-              });
-            } else if (!item.size && Array.isArray(found.sizes)) {
-              const sizesCopy = found.sizes.map(s => ({ ...s }));
-              const generic = sizesCopy.find(s => s.size === "الكمية");
-              if (generic) generic.qty += Number(item.quantity || 0);
-              else sizesCopy.push({ size: "الكمية", qty: Number(item.quantity || 0) });
-              newColors = newColors.map(c => c.color === item.color ? { ...c, sizes: sizesCopy } : c);
-            } else {
-              newColors = newColors.map(c => c.color === item.color ? { ...c, quantity: (c.quantity || 0) + Number(item.quantity || 0) } : c);
-            }
-          } else {
-            const addObj = item.size
-              ? { color: item.color, sizes: [{ size: item.size, qty: Number(item.quantity || 0) }] }
-              : { color: item.color, quantity: Number(item.quantity || 0) };
-            newColors = [...(newColors || []), addObj];
-          }
-        }
-        // 🔹 المنتج له مقاس فقط
-        else if (item.size && !item.color) {
-          const foundS = newSizes && newSizes.find(s => s.size === item.size);
-          if (foundS) newSizes = newSizes.map(s => s.size === item.size ? { ...s, qty: (s.qty || 0) + Number(item.quantity || 0) } : s);
-          else newSizes = [...(newSizes || []), { size: item.size, qty: Number(item.quantity || 0) }];
-        }
-        // 🔹 المنتج بسيط (كمية فقط)
-        else if (!item.color && !item.size) {
-          const newQty = (Number(prodData.quantity) || 0) + Number(item.quantity || 0);
-          await updateDoc(prodRef, { quantity: newQty });
-        }
-
-        // تحديث باقي بيانات المنتج في المخزون إذا كان له لون أو مقاس
-        if (item.color || item.size) {
-          const newTotalQty = computeNewTotalQuantity(newColors, newSizes, Number(prodData.quantity || 0));
-          const updateObj = { quantity: newTotalQty };
-          if (newColors) updateObj.colors = newColors.map(c => {
-            const o = { color: c.color };
-            if (Array.isArray(c.sizes)) o.sizes = c.sizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
-            if (c.quantity !== undefined) o.quantity = c.quantity;
-            return o;
-          });
-          if (newSizes) updateObj.sizes = newSizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
-          await updateDoc(prodRef, updateObj);
-        }
-      } else {
-        const toAdd = {
-          name: item.name,
-          code: item.code || "",
-          quantity: item.quantity || 0,
-          buyPrice: item.buyPrice || 0,
-          sellPrice: item.sellPrice || 0,
-          shop: item.shop || shop,
-          type: item.type || "product",
-        };
-        if (item.color) toAdd.colors = [{ color: item.color, sizes: [{ size: item.size || "الكمية", qty: item.quantity || 0 }] }];
-        if (item.size && !item.color) toAdd.sizes = [{ size: item.size, qty: item.quantity || 0 }];
-        await addDoc(collection(db, "lacosteProducts"), toAdd);
-      }
-    } else {
-      const toAdd = {
-        name: item.name,
-        code: item.code || "",
-        quantity: item.quantity || 0,
-        buyPrice: item.buyPrice || 0,
-        sellPrice: item.sellPrice || 0,
-        shop: item.shop || shop,
-        type: item.type || "product",
-      };
-      if (item.color) toAdd.colors = [{ color: item.color, sizes: [{ size: item.size || "الكمية", qty: item.quantity || 0 }] }];
-      if (item.size && !item.color) toAdd.sizes = [{ size: item.size, qty: item.quantity || 0 }];
-      await addDoc(collection(db, "lacosteProducts"), toAdd);
-    }
-
-    // تحديث الفاتورة
     const invoiceRef = doc(db, "reports", invoiceId);
     const invoiceSnap = await getDoc(invoiceRef);
 
-    if (invoiceSnap.exists()) {
-      const invoiceData = invoiceSnap.data();
-      const updatedCart = invoiceData.cart.filter(
-        (p) =>
-          !(
-            p.code === item.code &&
-            p.quantity === item.quantity &&
-            p.sellPrice === item.sellPrice &&
-            p.name === item.name &&
-            (p.color || "") === (item.color || "") &&
-            (p.size || "") === (item.size || "")
-          )
-      );
+    if (!invoiceSnap.exists()) {
+      alert("⚠️ لم يتم العثور على الفاتورة!");
+      return;
+    }
 
+    const invoiceData = invoiceSnap.data();
+    const invoiceDate = invoiceData.date;
+
+    const updatedCart = invoiceData.cart.filter(
+      (p) =>
+        !(
+          p.code === item.code &&
+          p.quantity === item.quantity &&
+          p.sellPrice === item.sellPrice &&
+          p.name === item.name &&
+          (p.color || "") === (item.color || "") &&
+          (p.size || "") === (item.size || "")
+        )
+    );
+
+    if (invoiceDate === formattedDate) {
       if (updatedCart.length > 0) {
         const newTotal = updatedCart.reduce((sum, p) => sum + (p.sellPrice * p.quantity || 0), 0);
         const newProfit = updatedCart.reduce((sum, p) => sum + ((p.sellPrice - (p.buyPrice || 0)) * (p.quantity || 1)), 0);
@@ -512,6 +451,7 @@ const handleReturnProduct = async (item, invoiceId) => {
 
         alert(`✅ تم إرجاع ${item.name} بنجاح وحُذف من الفاتورة!`);
       } else {
+        // الفاتورة أصبحت فارغة => نحذفها
         await deleteDoc(invoiceRef);
 
         const empQ = query(collection(db, "employeesReports"), where("date", "==", invoiceData.date), where("shop", "==", invoiceData.shop));
@@ -523,29 +463,54 @@ const handleReturnProduct = async (item, invoiceId) => {
         alert(`✅ تم إرجاع ${item.name} وحُذفت الفاتورة لأنها أصبحت فارغة.`);
       }
 
-      // 🔹 إضافة المصروف في collection masrofat
-      const masrofTotal = Number(item.sellPrice || 0) * Number(item.quantity || 0);
+      // أضف سجل المصروف لليوم (كما قبل)
       await addDoc(collection(db, "masrofat"), {
         name: item.name,
-        masrof: masrofTotal,
+        masrof: itemTotalPrice,
+        profit: itemProfit,
         reason: "فاتورة مرتجع",
-        shop: item.shop || shop
+        date: formattedDate,
+        shop: item.shop || shop,
+      });
+    }
+    else {
+      await addDoc(collection(db, "masrofat"), {
+        name: item.name,
+        masrof: itemTotalPrice, 
+        profit: itemProfit,   
+        reason: "فاتورة مرتجع",
+        date: formattedDate,
+        shop: item.shop || shop,
       });
 
-    } else {
-      alert("⚠️ لم يتم العثور على الفاتورة!");
+      await addDoc(collection(db, "employeesReports"), {
+        shop: item.shop || shop,
+        date: formattedDate,
+        cart: [],
+        total: 0,
+        profit: -itemProfit,
+        note: `مرتجع من فاتورة ${invoiceId} (أصلاً بتاريخ ${invoiceDate})`,
+        createdAt: Timestamp.now()
+      });
+
+      // إعلام المستخدم
+      alert(`✅ تم تسجيل مرتجع ${item.name} بتاريخ ${formattedDate} بدون تغيير الفاتورة الأصلية (ستظهر التأثيرات على الربح في يوم المرتجع).`);
     }
+
+    // ✅ إضافة الجزء الخاص بالمرتجع في collection "returns"
+    await addDoc(collection(db, "returns"), {
+      originalInvoiceId: invoiceId,
+      originalDate: invoiceDate || formattedDate,
+      returnDate: formattedDate,
+      item: item,
+      shop: item.shop || shop,
+    });
 
   } catch (error) {
     console.error("خطأ أثناء الإرجاع:", error);
     alert("❌ حدث خطأ أثناء إرجاع المنتج");
   }
 };
-
-
-
-
-
 
   if (loading) return <p>🔄 جاري التحقق...</p>;
   if (!auth) return null;
@@ -554,67 +519,44 @@ const handleReturnProduct = async (item, invoiceId) => {
     <div className={styles.reports}>
       <SideBar />
 
-      {/* المحتوى الرئيسي */}
       <div className={styles.content}>
-        {/* فلتر التاريخ / نوع / بحث */}
         <div className={styles.filterBar}>
           <div className={styles.inputBox}>
             <div className="inputContainer">
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-              />
+              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
             </div>
             <div className="inputContainer">
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-              />
+              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
             </div>
           </div>
 
           <div className={styles.inputBox}>
             <div className="inputContainer">
+              <input type="text" placeholder="بحث برقم العميل" value={searchPhone} onChange={(e) => setSearchPhone(e.target.value)} />
+            </div>
+          </div>
+
+          {/* NEW: بحث برقم الفاتورة */}
+          <div className={styles.inputBox} style={{ marginLeft: 12 }}>
+            <div className="inputContainer">
               <input
                 type="text"
-                placeholder="بحث برقم العميل"
-                value={searchPhone}
-                onChange={(e) => setSearchPhone(e.target.value)}
+                placeholder="بحث برقم الفاتورة (اضغط بدون اختيار تاريخ)"
+                value={searchInvoiceNumber}
+                onChange={(e) => setSearchInvoiceNumber(e.target.value)}
               />
             </div>
           </div>
         </div>
 
-        {/* كروت الملخص الثلاثة */}
-        <div className={styles.salesContainer}>
-            <div className={styles.cardsContainer}>
-                <div className={styles.card}>
-                    <h4>إجمالي المبيعات</h4>
-                    <p>{totalAmount} جنيه</p>
-                </div>
-                <div className={styles.card}>
-                    <h4>المصروفات</h4>
-                    <p>{expensesInRange} جنيه</p>
-                </div>
-                <div className={styles.card}>
-                    <h4>الربح</h4>
-                    <p>{profitInRange} جنيه</p>
-                </div>
-                <div className={styles.card}>
-                    <h4>الربح النهائي</h4>
-                    <p>{`${Number(profitInRange - expensesInRange)}`} جنيه</p>
-                </div>
-            </div>
-        </div>
-
-        {/* زر تصدير (يعمل فقط لو في فترة محددة) */}
-        <div>
+        <div style={{marginTop: '15px'}}>
           <button className={styles.exeBtn} onClick={exportToExcel}>تصدير Excel</button>
+          <button className={styles.exeBtn} onClick={() => setShowReturns(!showReturns)} style={{marginRight: '15px'}}>
+            {showReturns ? "إخفاء المرتجعات" : "عرض المرتجعات"}
+          </button>
         </div>
 
-        {/* إذا المستخدم لم يحدد فترة، نعرض رسالة */}
+        {!showReturns && (
           <div className={styles.tableContainer}>
             <table>
               <thead>
@@ -643,18 +585,9 @@ const handleReturnProduct = async (item, invoiceId) => {
                         <td>{report.phone || "-"}</td>
                         <td>{report.cart?.length || 0}</td>
                         <td>{total} EGP</td>
+                        <td>{report.date ? new Date(report.date.seconds * 1000).toLocaleDateString("ar-EG") : "-"}</td>
                         <td>
-                          {report.date
-                            ? new Date(report.date.seconds * 1000).toLocaleDateString("ar-EG")
-                            : "-"}
-                        </td>
-                        <td>
-                          <button
-                            className={styles.detailsBtn}
-                            onClick={() => openDrawer(report)}
-                          >
-                            عرض التفاصيل
-                          </button>
+                          <button className={styles.detailsBtn} onClick={() => openDrawer(report)}>عرض التفاصيل</button>
                         </td>
                       </tr>
                     );
@@ -663,13 +596,59 @@ const handleReturnProduct = async (item, invoiceId) => {
               </tbody>
             </table>
           </div>
+        )}
+
+        {showReturns && (
+          <div className={styles.tableContainer}>
+            <table>
+              <thead>
+                <tr>
+                  <th>المنتج</th>
+                  <th>الكمية</th>
+                  <th>سعر البيع</th>
+                  <th>تاريخ الفاتورة الأصلية</th>
+                  <th>تاريخ المرتجع</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayedReturns.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: "center", padding: 20 }}>
+                      لا توجد مرتجعات في الفترة المحددة.
+                    </td>
+                  </tr>
+                ) : (
+                  displayedReturns.map((ret) => {
+                    // عرض التاريخ الأصلي بطريقة آمنة
+                    const origMs = toMillis(ret.originalDate);
+                    const origDateStr = origMs ? new Date(origMs).toLocaleDateString("ar-EG") : (ret.originalDate || "-");
+
+                    // returnDate قد يكون مخزن كسلسلة DD/MM/YYYY أو نص آخر
+                    const retMs = toMillis(ret.returnDate);
+                    const retDateStr = retMs ? new Date(retMs).toLocaleDateString("ar-EG") : (ret.returnDate || "-");
+
+                    return (
+                      <tr key={ret.id}>
+                        <td>{ret.item?.name}</td>
+                        <td>{ret.item?.quantity}</td>
+                        <td>{ret.item?.sellPrice}</td>
+                        <td>{origDateStr}</td>
+                        <td>{retDateStr}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
       </div>
 
-      {/* القسم الجانبي (Drawer) لتفاصيل التقرير */}
       {isDrawerOpen && selectedReport && (
         <div className={styles.invoiceSidebar}>
           <div className={styles.sidebarHeader}>
-            <h3>تفاصيل التقرير</h3>
+            <h33>تفاصيل التقرير</h33>
             <button onClick={closeDrawer}>إغلاق</button>
           </div>
 

@@ -50,11 +50,11 @@ function SideBar({openSideBar, setOpenSideBar}) {
                 </Link>
                 <Link href={'/debts'} className={styles.actionLinks}>
                     <span><TbReportMoney/></span>
-                    <span>الديون</span>
+                    <span>البضاعة</span>
                 </Link>
                 <Link href={'/reports'} className={styles.actionLinks}>
                     <span><TbReportSearch/></span>
-                    <span>التقارير</span>
+                    <span>المرتجعات</span>
                 </Link>
                 {typeof window !== 'undefined' && localStorage.getItem('userName') === "mostafabeso10@gmail.com" && 
                   <Link href={'/profit'} className={styles.actionLinks}>

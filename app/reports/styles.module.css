@@ -384,4 +384,7 @@
     .resetBtns button {
         width: 100%;
     }
+    .inputBox {
+      flex-direction: column;
+    }
 }

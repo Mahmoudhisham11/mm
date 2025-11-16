@@ -168,5 +168,8 @@
         padding: 15px;
         font-size: 14px;
     }
+  .inputDate {
+    flex-direction: column;
+  }
 
 }
