@@ -197,7 +197,8 @@ withdrawsForCash.forEach(w => {
   remainingCash -= remaining;
 });
 
-setCashTotal(remainingCash);
+setCashTotal(remainingCash < 0 ? 0 : remainingCash);
+
 
 
     // 2️⃣ حساب الأرباح (من بعد effectiveFrom)
@@ -228,14 +229,15 @@ setCashTotal(remainingCash);
     remainingProfit -= returnedProfit;
 
     // 5️⃣ تحديث الواجهة
-    setProfit(remainingProfit);
-    setMostafaBalance(mostafaSum);
-    setMidoBalance(midoSum);
-    setDoubleMBalance(doubleMSum);
+    setProfit(remainingProfit < 0 ? 0 : remainingProfit);
+    setMostafaBalance(mostafaSum < 0 ? 0 : mostafaSum);
+    setMidoBalance(midoSum < 0 ? 0 : midoSum);
+    setDoubleMBalance(doubleMSum < 0 ? 0 : doubleMSum);
+
 
   }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, resetAt]);
 
-  const handleWithdraw = async () => {
+const handleWithdraw = async () => {
   if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
   const amount = Number(withdrawAmount);
   if (amount <= 0) return alert("المبلغ غير صالح");
@@ -258,8 +260,12 @@ setCashTotal(remainingCash);
     { id: docRef.id, person: withdrawPerson, amount, notes: withdrawNotes, date: newDate, createdAt: Timestamp.now(), paid: 0 },
   ]);
 
-  // ✅ تحديث الربح ورصيد الشخص فورًا
-  setProfit(prev => prev - amount);
+  // تحديث الربح ورصيد الشخص فورًا مع حماية ضد القيم السالبة
+  setProfit(prev => {
+    const newProfit = prev - amount;
+    return newProfit < 0 ? 0 : newProfit;
+  });
+
   if (withdrawPerson === "مصطفى") setMostafaBalance(prev => prev + amount);
   if (withdrawPerson === "ميدو") setMidoBalance(prev => prev + amount);
   if (withdrawPerson === "دبل M") setDoubleMBalance(prev => prev + amount);
@@ -269,6 +275,7 @@ setCashTotal(remainingCash);
   setWithdrawNotes("");
   setShowPopup(false);
 };
+
 
   const handleAddCash = async () => {
     const amount = Number(addCashAmount);
@@ -329,21 +336,36 @@ setCashTotal(remainingCash);
   };
 
   const handlePay = async () => {
-    const amount = Number(payAmount);
-    if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
+  const amount = Number(payAmount);
+  if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
 
-    const withdraw = withdraws.find(w => w.id === payWithdrawId);
-    if (!withdraw) return alert("حدث خطأ");
+  const withdraw = withdraws.find(w => w.id === payWithdrawId);
+  if (!withdraw) return alert("حدث خطأ");
 
-    const remainingDebt = withdraw.amount - (withdraw.paid || 0);
-    if (amount > remainingDebt) return alert(`المبلغ أكبر من المبلغ المستحق: ${remainingDebt}`);
+  const remainingDebt = withdraw.amount - (withdraw.paid || 0);
+  if (amount > remainingDebt) return alert(`المبلغ أكبر من المبلغ المستحق: ${remainingDebt}`);
 
-    const withdrawRef = doc(db, "withdraws", payWithdrawId);
-    await updateDoc(withdrawRef, { paid: (withdraw.paid || 0) + amount });
+  const withdrawRef = doc(db, "withdraws", payWithdrawId);
+  await updateDoc(withdrawRef, { paid: (withdraw.paid || 0) + amount });
 
-    setWithdraws(prev => prev.map(w => w.id === payWithdrawId ? { ...w, paid: (w.paid || 0) + amount } : w));
-    setShowPayPopup(false);
-  };
+  setWithdraws(prev => prev.map(w => {
+    if (w.id === payWithdrawId) {
+      const newPaid = (w.paid || 0) + amount;
+      const maxPaid = w.amount;
+      return { ...w, paid: newPaid > maxPaid ? maxPaid : newPaid };
+    }
+    return w;
+  }));
+
+  // حماية الربح من أن يصبح سالبًا
+  setProfit(prev => {
+    const newProfit = prev + amount; // لأن الدفع يقلل الدين، الربح يزيد
+    return newProfit < 0 ? 0 : newProfit;
+  });
+
+  setShowPayPopup(false);
+};
+
 
   const handleClearDeletedProducts = async () => {
     if (!shop) return alert("لم يتم العثور على المتجر");
