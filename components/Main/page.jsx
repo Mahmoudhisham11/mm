@@ -32,6 +32,7 @@ function Main() {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [searchClient, setSearchClient] = useState("");
   const [masrofat, setMasrofat] = useState([])
+  const [totalMaxDiscount, setTotalMaxDiscount] = useState(0)
 
   // NEW: discount popup & values
   const [showDiscountPopup, setShowDiscountPopup] = useState(false);
@@ -674,8 +675,18 @@ useEffect(() => {
   }, 400);
 
   return () => clearTimeout(timer);
-}, [searchCode, products, shop]);
+}, [searchCode, products, shop])
+useEffect(() => {
+  const maxDiscounts = products.map(item => {
+    const alreadyDiscounted = item.sellPrice - item.finalPrice;
+    return item.sellPrice - alreadyDiscounted;
+  });
 
+  const totalMaxDiscount = maxDiscounts.reduce((acc, val) => acc + val, 0);
+
+  setTotalMaxDiscount(totalMaxDiscount); // نخزن الحد الكلي للخصم في state
+}, [products]);
+;
 const handleApplyDiscount = () => {
   const numeric = Number(discountInput) || 0;
 
@@ -683,10 +694,6 @@ const handleApplyDiscount = () => {
     alert('الخصم لا يمكن أن يكون قيمة سالبة');
     return;
   }
-
-  // نحدد أقصى حد للخصم لكل المنتجات
-  const maxDiscounts = products.map(item => item.sellPrice - item.finalPrice);
-  const totalMaxDiscount = maxDiscounts.reduce((acc, val) => acc + val, 0);
 
   if (numeric > totalMaxDiscount) {
     alert(`الخصم أكبر من الحد المسموح به. أقصى خصم ممكن للفاتورة هو ${totalMaxDiscount}`);
@@ -696,6 +703,7 @@ const handleApplyDiscount = () => {
   setAppliedDiscount(numeric);
   setShowDiscountPopup(false);
 };
+
 
 
 
