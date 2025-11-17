@@ -734,7 +734,7 @@ const confirmDeleteSelected = async () => {
                             <td>{product.name || "-"}</td>
                             <td>{product.buyPrice || 0} EGP</td>
                             <td>{product.sellPrice || 0} EGP</td>
-                            <td>{p.finalPrice} EGP</td>
+                            <td>{product.finalPrice} EGP</td>
                             <td>{totalQ || product.quantity || 0}</td>
                             <td>{colorsQtyStr || "-"}</td>
                             <td style={{ whiteSpace: 'pre-wrap', maxWidth: 300 }}>{sizesDetail || "-"}</td>
