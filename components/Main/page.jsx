@@ -676,7 +676,7 @@ useEffect(() => {
   return () => clearTimeout(timer);
 }, [searchCode, products, shop]);
 
-  const handleApplyDiscount = () => {
+const handleApplyDiscount = () => {
   const numeric = Number(discountInput) || 0;
 
   if (numeric < 0) {
@@ -684,9 +684,11 @@ useEffect(() => {
     return;
   }
 
-  // نحسب الحد الأقصى للخصم لكل منتج
+  // نحدد الحد الأقصى للخصم على أساس السعر الأصلي لكل منتج
   const totalMaxDiscount = products.reduce((acc, item) => {
-    return acc + (item.price - item.finalPrice);
+    // الفرق بين السعر الأصلي والسعر النهائي الحالي أو الصفر لو مفيش خصم
+    const maxDiscountPerItem = item.price; // أو item.price - (item.finalPrice || 0)
+    return acc + maxDiscountPerItem;
   }, 0);
 
   if (numeric > totalMaxDiscount) {
@@ -697,6 +699,7 @@ useEffect(() => {
   setAppliedDiscount(numeric);
   setShowDiscountPopup(false);
 };
+
 
 
   const handleClearDiscount = () => {
