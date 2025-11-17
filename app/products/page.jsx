@@ -34,6 +34,7 @@ function Products() {
   const [searchCode, setSearchCode] = useState("");
   const [totalBuy, setTotalBuy] = useState(0);
   const [totalSell, setTotalSell] = useState(0);
+  const [totalProducts, setTotalProducts] = useState(0)
   const [showDeletePopup, setShowDeletePopup] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteForm, setDeleteForm] = useState([]);  
@@ -106,6 +107,30 @@ function Products() {
         ...doc.data(),
       }));
       setProducts(data);
+      let totalQty = 0;
+
+data.forEach((product) => {
+  let productQty = 0;
+
+  if (product.colors && product.colors.length) {
+    product.colors.forEach((c) => {
+      if (c.sizes && c.sizes.length) {
+        c.sizes.forEach((sz) => {
+          productQty += Number(sz.qty || 0);
+        });
+      } else if (c.quantity) {
+        productQty += Number(c.quantity || 0);
+      }
+    });
+  } else {
+    productQty = Number(product.quantity || 0);
+  }
+
+  totalQty += productQty;
+});
+
+setTotalProducts(totalQty);
+
 
       let totalBuyAmount = 0;
       let totalSellAmount = 0;
@@ -638,6 +663,7 @@ const confirmDeleteSelected = async () => {
                 <div className={styles.totals}>
                   <p>اجمالي الشراء: {totalBuy} EGP</p>
                   <p>اجمالي البيع: {totalSell} EGP</p>
+                  <p>اجمالي المنتجات: {totalProducts} </p>
                 </div>
 
                 <div className={styles.tableContainer}>
