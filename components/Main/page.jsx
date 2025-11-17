@@ -684,12 +684,9 @@ const handleApplyDiscount = () => {
     return;
   }
 
-  // نحدد الحد الأقصى للخصم على أساس السعر الأصلي لكل منتج
-  const totalMaxDiscount = products.reduce((acc, item) => {
-    // الفرق بين السعر الأصلي والسعر النهائي الحالي أو الصفر لو مفيش خصم
-    const maxDiscountPerItem = item.price; // أو item.price - (item.finalPrice || 0)
-    return acc + maxDiscountPerItem;
-  }, 0);
+  // نحدد أقصى حد للخصم لكل المنتجات
+  const maxDiscounts = products.map(item => item.sellPrice - item.finalPrice);
+  const totalMaxDiscount = maxDiscounts.reduce((acc, val) => acc + val, 0);
 
   if (numeric > totalMaxDiscount) {
     alert(`الخصم أكبر من الحد المسموح به. أقصى خصم ممكن للفاتورة هو ${totalMaxDiscount}`);
@@ -699,6 +696,7 @@ const handleApplyDiscount = () => {
   setAppliedDiscount(numeric);
   setShowDiscountPopup(false);
 };
+
 
 
 
