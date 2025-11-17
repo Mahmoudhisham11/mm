@@ -105,7 +105,6 @@ export default function Profit() {
     const resets = resetSnap.docs.map(doc => doc.data());
 
     if (resets.length > 0) {
-      // ناخد آخر تصفير - قد يكون Timestamp أو Date
       const latestReset = resets.reduce((prev, curr) => {
         const prevTs = prev.resetAt?.seconds ? prev.resetAt.seconds : (new Date(prev.resetAt)).getTime() / 1000;
         const currTs = curr.resetAt?.seconds ? curr.resetAt.seconds : (new Date(curr.resetAt)).getTime() / 1000;
@@ -138,8 +137,8 @@ export default function Profit() {
   useEffect(() => {
     if (!shop) return;
 
-    fetchData();      // البيانات العادية
-    fetchReset();     // جلب آخر تصفير
+    fetchData();
+    fetchReset();
   }, [shop]);
 
   useEffect(() => {
@@ -148,60 +147,46 @@ export default function Profit() {
     const from = dateFrom ? new Date(dateFrom + "T00:00:00") : new Date("1970-01-01");
     const to = dateTo ? new Date(dateTo + "T23:59:59") : new Date();
 
-    // إذا المستخدِم محدد فترة يدويًا نستخدمها كما هي (حتى لو تشمل قبل reset)
-    // أما لو مفيش فلترة يدويّة فنعرض البيانات من بعد reset (لو موجود)
     const isUsingDateFilter = Boolean(dateFrom || dateTo);
     const effectiveFrom = isUsingDateFilter ? from : (resetAt ? resetAt : from);
 
-// يستخدم في حساب الخزنة فقط (لا يتأثر بالتصفير)
-const dailyForCash = dailyProfitData.filter(d => {
-  const dDate = parseDate(d.date) || parseDate(d.createdAt);
-  return dDate && dDate >= from && dDate <= to;
-});
+    const dailyForCash = dailyProfitData.filter(d => {
+      const dDate = parseDate(d.date) || parseDate(d.createdAt);
+      return dDate && dDate >= from && dDate <= to;
+    });
 
-// يستخدم في حساب الأرباح والسحوبات فقط (يتأثر بالتصفير)
-const filteredDaily = dailyProfitData.filter(d => {
-  const dDate = parseDate(d.date) || parseDate(d.createdAt);
-  return dDate && dDate >= effectiveFrom && dDate <= to;
-});
-
-
+    const filteredDaily = dailyProfitData.filter(d => {
+      const dDate = parseDate(d.date) || parseDate(d.createdAt);
+      return dDate && dDate >= effectiveFrom && dDate <= to;
+    });
 
     const filteredReports = reports.filter(r => {
       const rDate = parseDate(r.date) || parseDate(r.createdAt);
       return rDate && rDate >= effectiveFrom && rDate <= to;
     });
 
-    // للخزنة فقط — لا يتأثر بالتصفير
-const withdrawsForCash = withdraws.filter(w => {
-  const wDate = parseDate(w.date) || parseDate(w.createdAt);
-  return wDate >= from && wDate <= to;
-});
+    const withdrawsForCash = withdraws.filter(w => {
+      const wDate = parseDate(w.date) || parseDate(w.createdAt);
+      return wDate >= from && wDate <= to;
+    });
 
-// للربح — يتأثر بالتصفير
-const filteredWithdraws = withdraws.filter(w => {
-  const wDate = parseDate(w.date) || parseDate(w.createdAt);
-  return wDate >= effectiveFrom && wDate <= to;
-});
+    const filteredWithdraws = withdraws.filter(w => {
+      const wDate = parseDate(w.date) || parseDate(w.createdAt);
+      return wDate >= effectiveFrom && wDate <= to;
+    });
 
+    const totalMasrofat = dailyForCash.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
+    const totalCash = dailyForCash.reduce((sum, d) => sum + (d.totalSales || 0), 0);
 
-    // 1️⃣ حساب الخزنة دائمًا (لا تتأثر بالتصفير)
-    // خزنة — بدون أي علاقة بالتصفير
-const totalMasrofat = dailyForCash.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
-const totalCash = dailyForCash.reduce((sum, d) => sum + (d.totalSales || 0), 0);
+    let remainingCash = totalCash - totalMasrofat;
 
-let remainingCash = totalCash - totalMasrofat;
+    withdrawsForCash.forEach(w => {
+      const remaining = (w.amount || 0) - (w.paid || 0);
+      remainingCash -= remaining;
+    });
 
-withdrawsForCash.forEach(w => {
-  const remaining = (w.amount || 0) - (w.paid || 0);
-  remainingCash -= remaining;
-});
+    setCashTotal(remainingCash < 0 ? 0 : remainingCash);
 
-setCashTotal(remainingCash < 0 ? 0 : remainingCash);
-
-
-
-    // 2️⃣ حساب الأرباح (من بعد effectiveFrom)
     let remainingProfit = 0;
     filteredReports.forEach(r => {
       if (!r.cart || !Array.isArray(r.cart)) return;
@@ -214,98 +199,91 @@ setCashTotal(remainingCash < 0 ? 0 : remainingCash);
       remainingProfit += reportProfit;
     });
 
-    // 3️⃣ حساب أرصدة الأشخاص (مصطفى/ميدو/دبل M) وخصم السحوبات من الربح
     let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
     filteredWithdraws.forEach(w => {
       const remaining = (Number(w.amount) || 0) - (Number(w.paid) || 0);
-      remainingProfit -= remaining; // نطرح السحوبات التي ضمن الـ range (وبالتالي بعد reset لو نطبّق reset)
+      remainingProfit -= remaining;
       if (w.person === "مصطفى") mostafaSum += remaining;
       if (w.person === "ميدو") midoSum += remaining;
       if (w.person === "دبل M") doubleMSum += remaining;
     });
 
-    // 4️⃣ خصم returnedProfit ضمن نفس الـ range
     const returnedProfit = filteredDaily.reduce((sum, d) => sum + (Number(d.returnedProfit) || 0), 0);
     remainingProfit -= returnedProfit;
 
-    // 5️⃣ تحديث الواجهة
     setProfit(remainingProfit < 0 ? 0 : remainingProfit);
     setMostafaBalance(mostafaSum < 0 ? 0 : mostafaSum);
     setMidoBalance(midoSum < 0 ? 0 : midoSum);
     setDoubleMBalance(doubleMSum < 0 ? 0 : doubleMSum);
 
-
   }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, resetAt]);
 
-const handleWithdraw = async () => {
-  if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
-  const amount = Number(withdrawAmount);
-  if (amount <= 0) return alert("المبلغ غير صالح");
-  if (amount > cashTotal) return alert("رصيد الخزنة غير كافي");
+  const handleWithdraw = async () => {
+    if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
+    const amount = Number(withdrawAmount);
+    if (amount <= 0) return alert("المبلغ غير صالح");
+    if (amount > cashTotal) return alert("رصيد الخزنة غير كافي");
 
-  const newDate = formatDate(new Date());
-  await addDoc(collection(db, "withdraws"), {
-    shop,
-    person: withdrawPerson,
-    amount,
-    notes: withdrawNotes,
-    date: newDate,
-    createdAt: Timestamp.now(),
-    paid: 0
-  });
+    const newDate = new Date(); // وقت فعلي
+    await addDoc(collection(db, "withdraws"), {
+      shop,
+      person: withdrawPerson,
+      amount,
+      notes: withdrawNotes,
+      date: formatDate(newDate),
+      createdAt: Timestamp.fromDate(newDate),
+      paid: 0
+    });
 
-  // جلب البيانات مرة تانية بعد التحديث
-  await fetchData();
+    await fetchData();
 
-  setWithdrawPerson("");
-  setWithdrawAmount("");
-  setWithdrawNotes("");
-  setShowPopup(false);
-};
+    // تحديث الربح ورصيد الشخص مباشرة بعد السحب
+    setProfit(prev => prev - amount);
+    if (withdrawPerson === "مصطفى") setMostafaBalance(prev => prev + amount);
+    if (withdrawPerson === "ميدو") setMidoBalance(prev => prev + amount);
+    if (withdrawPerson === "دبل M") setDoubleMBalance(prev => prev + amount);
 
+    setWithdrawPerson("");
+    setWithdrawAmount("");
+    setWithdrawNotes("");
+    setShowPopup(false);
+  };
 
+  const handleAddCash = async () => {
+    const amount = Number(addCashAmount);
+    if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
 
-const handleAddCash = async () => {
-  const amount = Number(addCashAmount);
-  if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
+    const newDate = formatDate(new Date());
+    await addDoc(collection(db, "dailyProfit"), {
+      shop,
+      totalSales: amount,
+      totalMasrofat: 0,
+      returnedProfit: 0,
+      notes: addCashNotes,
+      date: newDate,
+      createdAt: Timestamp.now(),
+    });
 
-  const newDate = formatDate(new Date());
-  await addDoc(collection(db, "dailyProfit"), {
-    shop,
-    totalSales: amount,
-    totalMasrofat: 0,
-    returnedProfit: 0,
-    notes: addCashNotes,
-    date: newDate,
-    createdAt: Timestamp.now(),
-  });
+    await fetchData();
 
-  // تحديث البيانات بعد الإضافة
-  await fetchData();
-
-  setAddCashAmount("");
-  setAddCashNotes("");
-  setShowAddCashPopup(false);
-};
-
+    setAddCashAmount("");
+    setAddCashNotes("");
+    setShowAddCashPopup(false);
+  };
 
   const handleResetProfit = async () => {
     const confirmReset = confirm("هل أنت متأكد من تصفير الأرباح والأرصدة؟");
     if (!confirmReset) return;
 
-    const now = Timestamp.now(); // نحفظ كتاريخ من نوع Timestamp
+    const now = Timestamp.now();
 
-    // حفظ التصفير في Firestore
     await addDoc(collection(db, "reset"), {
       shop,
       resetAt: now,
     });
 
-    // حفظ التصفير محليًا (iso) لعرض فوري
     const nowDate = new Date();
     localStorage.setItem("resetAt", nowDate.toISOString());
-
-    // setResetAt يأخذ Date object علشان useEffect يشتغل فورًا
     setResetAt(nowDate);
   };
 
@@ -326,26 +304,26 @@ const handleAddCash = async () => {
     setShowPayPopup(true);
   };
 
-const handlePay = async () => {
-  const amount = Number(payAmount);
-  if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
+  const handlePay = async () => {
+    const amount = Number(payAmount);
+    if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
 
-  const withdraw = withdraws.find(w => w.id === payWithdrawId);
-  if (!withdraw) return alert("حدث خطأ");
+    const withdraw = withdraws.find(w => w.id === payWithdrawId);
+    if (!withdraw) return alert("حدث خطأ");
 
-  const remainingDebt = withdraw.amount - (withdraw.paid || 0);
-  if (amount > remainingDebt) return alert(`المبلغ أكبر من المبلغ المستحق: ${remainingDebt}`);
+    const remainingDebt = withdraw.amount - (withdraw.paid || 0);
+    if (amount > remainingDebt) return alert(`المبلغ أكبر من المبلغ المستحق: ${remainingDebt}`);
 
-  const withdrawRef = doc(db, "withdraws", payWithdrawId);
-  await updateDoc(withdrawRef, { paid: (withdraw.paid || 0) + amount });
+    const withdrawRef = doc(db, "withdraws", payWithdrawId);
+    await updateDoc(withdrawRef, { paid: (withdraw.paid || 0) + amount });
 
-  // تحديث البيانات بعد السداد
-  await fetchData();
+    await fetchData();
 
-  setShowPayPopup(false);
-};
+    // تحديث الربح فورًا بعد السداد
+    setProfit(prev => prev + amount);
 
-
+    setShowPayPopup(false);
+  };
 
   const handleClearDeletedProducts = async () => {
     if (!shop) return alert("لم يتم العثور على المتجر");
@@ -361,7 +339,6 @@ const handlePay = async () => {
 
       await Promise.all(deletePromises);
 
-      // تحديث الواجهة
       setDeletedProducts([]);
       setDeletedTotal(0);
 
@@ -371,7 +348,6 @@ const handlePay = async () => {
       alert("حدث خطأ أثناء الحذف");
     }
   };
-
 
   return (
     <div className={styles.profit}>
@@ -416,89 +392,44 @@ const handlePay = async () => {
           className={styles.withdrawBtn} 
           style={{ marginLeft: '10px', backgroundColor: 'red', color: '#fff' }}
         >
-          حذف كل المرتجعات
+          مسح كل المرتجعات
         </button>
-
-        <div className={styles.tableContainer}>
-          <table>
-            <thead>
-              <tr>
-                <th>الاسم</th>
-                <th>المبلغ</th>
-                <th>المدفوع</th>
-                <th>المتبقي</th>
-                <th>التاريخ</th>
-                <th>ملاحظات</th>
-                <th>حذف</th>
-                <th>سداد</th>
-              </tr>
-            </thead>
-            <tbody>
-              {withdraws.map(w => (
-                <tr key={w.id}>
-                  <td>{w.person}</td>
-                  <td>{isHidden ? "*****" : w.amount}</td>
-                  <td>{isHidden ? "*****" : (w.paid || 0)}</td>
-                  <td>{isHidden ? "*****" : (w.amount - (w.paid || 0))}</td>
-                  <td>{formatDate(parseDate(w.date) || parseDate(w.createdAt))}</td>
-                  <td>{w.notes || ""}</td>
-                  <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.delBtn} onClick={() => handleDeleteWithdraw(w.id)}>حذف</button>}</td>
-                  <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.payBtn} onClick={() => handleOpenPay(w)}>سداد</button>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {showPopup && (
-          <div className={styles.popup}>
-            <div className={styles.popupContent}>
-              <h3>عملية سحب</h3>
-              <select value={withdrawPerson} onChange={e => setWithdrawPerson(e.target.value)}>
-                <option value="">اختر الشخص</option>
-                <option value="مصطفى">مصطفى</option>
-                <option value="ميدو">ميدو</option>
-                <option value="دبل M">دبل M</option>
-              </select>
-              <input type="number" placeholder="المبلغ" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} />
-              <input type="text" placeholder="ملاحظات" value={withdrawNotes} onChange={e => setWithdrawNotes(e.target.value)} />
-              <div className={styles.popupActions}>
-                <button onClick={handleWithdraw}>تأكيد</button>
-                <button onClick={() => setShowPopup(false)}>إلغاء</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showPayPopup && (
-          <div className={styles.popup}>
-            <div className={styles.popupContent}>
-              <h3>سداد مبلغ</h3>
-              <p>الشخص: {payPerson}</p>
-              <input type="number" placeholder="المبلغ" value={payAmount} onChange={e => setPayAmount(e.target.value)} />
-              <div className={styles.popupActions}>
-                <button onClick={handlePay}>تأكيد</button>
-                <button onClick={() => setShowPayPopup(false)}>إلغاء</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showAddCashPopup && (
-          <div className={styles.popup}>
-            <div className={styles.popupContent}>
-              <h3>إضافة مبلغ للخزنة</h3>
-              <input type="number" placeholder="المبلغ" value={addCashAmount} onChange={e => setAddCashAmount(e.target.value)} />
-              <input type="text" placeholder="ملاحظات" value={addCashNotes} onChange={e => setAddCashNotes(e.target.value)} />
-              <div className={styles.popupActions}>
-                <button onClick={handleAddCash}>تأكيد</button>
-                <button onClick={() => setShowAddCashPopup(false)}>إلغاء</button>
-              </div>
-            </div>
-          </div>
-        )}
-
       </div>
+
+      {showPopup && (
+        <div className={styles.popup}>
+          <h3>سحب</h3>
+          <select value={withdrawPerson} onChange={e => setWithdrawPerson(e.target.value)}>
+            <option value="">اختر الشخص</option>
+            <option value="مصطفى">مصطفى</option>
+            <option value="ميدو">ميدو</option>
+            <option value="دبل M">دبل M</option>
+          </select>
+          <input type="number" placeholder="المبلغ" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} />
+          <textarea placeholder="ملاحظات" value={withdrawNotes} onChange={e => setWithdrawNotes(e.target.value)} />
+          <button onClick={handleWithdraw}>تأكيد السحب</button>
+          <button onClick={() => setShowPopup(false)}>إلغاء</button>
+        </div>
+      )}
+
+      {showAddCashPopup && (
+        <div className={styles.popup}>
+          <h3>إضافة للخزنة</h3>
+          <input type="number" placeholder="المبلغ" value={addCashAmount} onChange={e => setAddCashAmount(e.target.value)} />
+          <textarea placeholder="ملاحظات" value={addCashNotes} onChange={e => setAddCashNotes(e.target.value)} />
+          <button onClick={handleAddCash}>إضافة</button>
+          <button onClick={() => setShowAddCashPopup(false)}>إلغاء</button>
+        </div>
+      )}
+
+      {showPayPopup && (
+        <div className={styles.popup}>
+          <h3>سداد لـ {payPerson}</h3>
+          <input type="number" placeholder="المبلغ" value={payAmount} onChange={e => setPayAmount(e.target.value)} />
+          <button onClick={handlePay}>تأكيد السداد</button>
+          <button onClick={() => setShowPayPopup(false)}>إلغاء</button>
+        </div>
+      )}
     </div>
   );
 }
