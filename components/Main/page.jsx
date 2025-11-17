@@ -693,6 +693,11 @@ const handleApplyDiscount = () => {
     return;
   }
 
+  // حساب الحد الأقصى للخصم مباشرة من المنتجات
+  const totalMaxDiscount = products.reduce((acc, item) => {
+    return acc + (item.sellPrice - item.finalPrice);
+  }, 0);
+
   if (numeric > totalMaxDiscount) {
     alert(`الخصم أكبر من الحد المسموح به. أقصى خصم ممكن للفاتورة هو ${totalMaxDiscount}`);
     return;
@@ -701,6 +706,7 @@ const handleApplyDiscount = () => {
   setAppliedDiscount(numeric);
   setShowDiscountPopup(false);
 };
+
 
 
 
