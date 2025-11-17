@@ -85,12 +85,14 @@ export default function DailyReports() {
       <div className={styles.content}>
         
         <div className={styles.searchBox}>
-          <input
+          <div className="inputContainer">
+            <input
             type="text"
             placeholder="ابحث عن منتج..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          </div>
         </div>
 
         {/* عرض الإجمالي */}
