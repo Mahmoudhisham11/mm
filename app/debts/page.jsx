@@ -154,9 +154,27 @@ function Debts() {
 };
 
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, phone) => {
+  try {
+    // حذف كل السدادات الخاصة بالعميل
+    const paymentsQuery = query(
+      collection(db, "debtsPayments"),
+      where("phone", "==", phone),
+      where("shop", "==", shop)
+    );
+    const paymentsSnapshot = await getDocs(paymentsQuery);
+    const deletePaymentsPromises = paymentsSnapshot.docs.map(doc => deleteDoc(doc.ref));
+    await Promise.all(deletePaymentsPromises);
+
+    // حذف الدين نفسه
     await deleteDoc(doc(db, "debts", id));
-  };
+
+    alert("✅ تم حذف العميل وكل السدادات المرتبطة به");
+  } catch (err) {
+    console.error(err);
+    alert("❌ حدث خطأ أثناء الحذف");
+  }
+};
 
 const filteredCustomers = customers.filter((c) => {
   if (!c.date) return false;
@@ -355,14 +373,15 @@ const handleConfirmPayment = async () => {
                     </td>
                     <td>
                       <button
-                        className={styles.delBtn}
-                        onClick={() => {
-                          const ok = confirm("هل تريد حذف سجل هذا العميل؟");
-                          if (ok) handleDelete(customer.id);
-                        }}
-                      >
-                        <FaRegTrashAlt />
-                      </button>
+  className={styles.delBtn}
+  onClick={() => {
+    const ok = confirm("هل تريد حذف سجل هذا العميل وكل السدادات الخاصة به؟");
+    if (ok) handleDelete(customer.id, customer.phone);
+  }}
+>
+  <FaRegTrashAlt />
+</button>
+
                     </td>
                   </tr>
                 ))}
