@@ -16,13 +16,13 @@ export default function Settings() {
   const [employees, setEmployees] = useState([]);
   const [selectedUser, setSelectedUser] = useState("");
   const [permissions, setPermissions] = useState({
-    phones: false,
-    products: false,
+    phones: true,
+    products: true,
     masrofat: false,
-    employees: false,
+    employees: true,
     debts: false,
-    reports: false,
-    settings: false,
+    reports: true,
+    settings: true,
   });
 
   const [isSubscribed, setIsSubscribed] = useState(false);
@@ -262,8 +262,8 @@ export default function Settings() {
                     { key: "products", label: "صفحة المنتجات" },
                     { key: "masrofat", label: "صفحة المصاريف" },
                     { key: "employees", label: "صفحة الموظفين" },
-                    { key: "debts", label: "صفحة الديون" },
-                    { key: "reports", label: "صفحة التقارير" },
+                    { key: "debts", label: "صفحة البضاعة" },
+                    { key: "reports", label: "صفحة المرتجعات" },
                     { key: "settings", label: "صفحة الإعدادات" },
                   ].map((item) => (
                     <label key={item.key} className={styles.checkboxContainer}>

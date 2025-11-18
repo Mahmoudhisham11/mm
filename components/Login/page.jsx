@@ -16,38 +16,49 @@ function Login() {
     const [shop, setShop] = useState('') // ده يستخدم بس عند إنشاء الحساب
 
     // ✅ إنشاء حساب جديد
-    const handleCreatAcc = async () => {
-        if (!userName) {
-            alert("يجب ادخال اسم المستخدم")
-            return
-        }
-        if (!password) {
-            alert("يجب ادخال كلمة المرور")
-            return
-        }
-        if (!shop) {
-            alert("يجب ادخال اسم الفرع")
-            return
-        }
-
-        const q = query(collection(db, 'users'), where('userName', '==', userName))
-        const querySnapshot = await getDocs(q)
-
-        if (querySnapshot.empty) {
-            await addDoc(collection(db, 'users'), {
-                userName,
-                password,
-                shop,
-                isSubscribed: false
-            })
-            alert("✅ تم انشاء حساب للمستخدم")
-            setUserName('')
-            setPassword('')
-            setShop('')
-        } else {
-            alert('❌ المستخدم موجود بالفعل')
-        }
+    // ✅ إنشاء حساب جديد
+const handleCreatAcc = async () => {
+    if (!userName) {
+        alert("يجب ادخال اسم المستخدم")
+        return
     }
+    if (!password) {
+        alert("يجب ادخال كلمة المرور")
+        return
+    }
+    if (!shop) {
+        alert("يجب ادخال اسم الفرع")
+        return
+    }
+
+    const q = query(collection(db, 'users'), where('userName', '==', userName))
+    const querySnapshot = await getDocs(q)
+
+    if (querySnapshot.empty) {
+        await addDoc(collection(db, 'users'), {
+            userName,
+            password,
+            shop,
+            isSubscribed: false,
+            // ✅ الصلاحيات الافتراضية للمستخدم الجديد
+            permissions: {
+                products: true,    // صفحة المنتجات
+                employees: true,   // صفحة الموظفين
+                debts: true,       // صفحة البضاعة
+                masrofat: false,    // صفحة المصاريف
+                reports: false,     // صفحة المرتجعات
+                settings: true,    // صفحة الإعدادات
+                phones: true       // صفحة الموبايلات/الأجهزة
+            }
+        })
+        alert("✅ تم انشاء حساب للمستخدم")
+        setUserName('')
+        setPassword('')
+        setShop('')
+    } else {
+        alert('❌ المستخدم موجود بالفعل')
+    }
+}
 
     // ✅ تسجيل الدخول
     const handleLogin = async () => {
