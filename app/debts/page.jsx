@@ -23,6 +23,7 @@ import { useRouter } from "next/navigation";
 
 function Debts() {
   const router = useRouter()
+  const [detailsAslDebt, setDetailsAslDebt] = useState(0);
   const [auth, setAuth] = useState(false)
   const [loading, setLoading] = useState(true)
   const [active, setActive] = useState(false);
@@ -271,17 +272,22 @@ const handleConfirmPayment = async () => {
 
   // ===== Open details popup
   const openDetailsPopup = async (customer) => {
-    if (!customer) return;
-    const q = query(
-      collection(db, "debtsPayments"),
-      where("shop", "==", shop),
-      where("phone", "==", customer.phone)
-    );
-    const snapshot = await getDocs(q);
-    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setDetailsPayments(data);
-    setShowDetailsPopup(true);
-  };
+  if (!customer) return;
+
+  // حفظ اصل الدين
+  setDetailsAslDebt(customer.aslDebt || customer.debt || 0);
+
+  const q = query(
+    collection(db, "debtsPayments"),
+    where("shop", "==", shop),
+    where("phone", "==", customer.phone)
+  );
+  const snapshot = await getDocs(q);
+  const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  setDetailsPayments(data);
+  setShowDetailsPopup(true);
+};
+
 
   const closeDetailsPopup = () => {
     setDetailsPayments([]);
@@ -520,7 +526,8 @@ const handleConfirmPayment = async () => {
               <h3 style={{ margin: 0 }}>تفاصيل السداد</h3>
               <button onClick={closeDetailsPopup} style={{ background: "transparent", border: "none", fontSize: 18, cursor: "pointer" }}>✖</button>
             </div>
-            <h3>اصل الدين: {aslDebt}</h3>
+            <h3>اصل الدين: {detailsAslDebt} EGP</h3>
+
 
             {detailsPayments.length === 0 ? (
   <p>لا توجد مدفوعات لهذا العميل.</p>
