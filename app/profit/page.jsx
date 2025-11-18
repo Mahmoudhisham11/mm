@@ -259,46 +259,43 @@ filteredWithdraws.forEach(w => {
 
 
   const handleWithdraw = async () => {
-    if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
-    const amount = Number(withdrawAmount);
-    if (amount <= 0) return alert("المبلغ غير صالح");
-    if (amount > cashTotal) return alert("رصيد الخزنة غير كافي");
+  if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
+  const amount = Number(withdrawAmount);
+  if (amount <= 0) return alert("المبلغ غير صالح");
+  if (amount > cashTotal) return alert("رصيد الخزنة غير كافي");
 
-    const newDate = new Date(); // وقت فعلي
-    await addDoc(collection(db, "withdraws"), {
-      shop,
-      person: withdrawPerson,
-      amount,
-      notes: withdrawNotes,
-      date: formatDate(newDate),
-      createdAt: Timestamp.fromDate(newDate),
-      paid: 0
-    });
+  const newDate = new Date();
 
-    await fetchData();
+  await addDoc(collection(db, "withdraws"), {
+    shop,
+    person: withdrawPerson,
+    amount,
+    notes: withdrawNotes,
+    date: formatDate(newDate),
+    createdAt: Timestamp.fromDate(newDate),
+    paid: 0
+  });
 
-    // تحديث الربح ورصيد الشخص مباشرة بعد السحب
-    setProfit(prev => prev - amount);
-    if (withdrawPerson === "مصطفى") setMostafaBalance(prev => prev + amount);
-    if (withdrawPerson === "ميدو") setMidoBalance(prev => prev + amount);
-    if (withdrawPerson === "دبل M") setDoubleMBalance(prev => prev + amount);
+  // تحديث كل البيانات من Firebase مباشرة
+  await fetchData();
 
-    setWithdrawPerson("");
-    setWithdrawAmount("");
-    setWithdrawNotes("");
-    setShowPopup(false);
-  };
+  // مسح الفورم
+  setWithdrawPerson("");
+  setWithdrawAmount("");
+  setWithdrawNotes("");
+  setShowPopup(false);
+};
+
 
 const handleAddCash = async () => {
   const amount = Number(addCashAmount);
   if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
 
-  const newDate = new Date(); // وقت فعلي
+  const newDate = new Date();
 
-  // إضافة المبلغ كعملية في withdraws
   await addDoc(collection(db, "withdraws"), {
     shop,
-    person: "الخزنة",      // تقدر تغير الاسم لو تحب
+    person: "الخزنة",
     amount,
     paid: 0,
     notes: addCashNotes,
@@ -306,13 +303,14 @@ const handleAddCash = async () => {
     createdAt: Timestamp.fromDate(newDate),
   });
 
-  // تحديث البيانات فورًا
+  // تحديث البيانات مباشرة
   await fetchData();
 
   setAddCashAmount("");
   setAddCashNotes("");
   setShowAddCashPopup(false);
 };
+
 
 
 
@@ -350,25 +348,24 @@ const handleAddCash = async () => {
   };
 
   const handlePay = async () => {
-    const amount = Number(payAmount);
-    if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
+  const amount = Number(payAmount);
+  if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
 
-    const withdraw = withdraws.find(w => w.id === payWithdrawId);
-    if (!withdraw) return alert("حدث خطأ");
+  const withdraw = withdraws.find(w => w.id === payWithdrawId);
+  if (!withdraw) return alert("حدث خطأ");
 
-    const remainingDebt = withdraw.amount - (withdraw.paid || 0);
-    if (amount > remainingDebt) return alert(`المبلغ أكبر من المبلغ المستحق: ${remainingDebt}`);
+  const remainingDebt = withdraw.amount - (withdraw.paid || 0);
+  if (amount > remainingDebt) return alert(`المبلغ أكبر من المبلغ المستحق: ${remainingDebt}`);
 
-    const withdrawRef = doc(db, "withdraws", payWithdrawId);
-    await updateDoc(withdrawRef, { paid: (withdraw.paid || 0) + amount });
+  const withdrawRef = doc(db, "withdraws", payWithdrawId);
+  await updateDoc(withdrawRef, { paid: (withdraw.paid || 0) + amount });
 
-    await fetchData();
+  // تحديث كل البيانات مباشرة
+  await fetchData();
 
-    // تحديث الربح فورًا بعد السداد
-    setProfit(prev => prev + amount);
+  setShowPayPopup(false);
+};
 
-    setShowPayPopup(false);
-  };
 
 const handleClearDeletedProducts = async () => {
   if (!shop) return alert("لم يتم العثور على المتجر");
@@ -384,9 +381,13 @@ const handleClearDeletedProducts = async () => {
     resetAt: Timestamp.fromDate(now),
   });
 
-  setDeletedTotal(0);               // اجعل الرقم صفر في الواجهة
-  setIsDeletedTotalCleared(true);   // علم أن الإجمالي مُصفّر
+  // تحديث البيانات من Firebase مباشرة
+  await fetchData();
+
+  setDeletedTotal(0);
+  setIsDeletedTotalCleared(true);
 };
+
 
 
 

@@ -156,9 +156,13 @@ function Debts() {
     await deleteDoc(doc(db, "debts", id));
   };
 
-  const filteredCustomers = customers.filter((c) =>
-    c.name.toLowerCase().includes(searchCode.toLowerCase())
-  );
+const filteredCustomers = customers.filter((c) => {
+  if (!c.date) return false;
+  const dateStr = c.date.toDate().toLocaleDateString("en-GB"); // أو "ar-EG" لو تحب العربي
+  return dateStr.includes(searchCode);
+});
+
+
 
   // ===== Open payment modal
   const openPaymentModal = (customer) => {
@@ -209,11 +213,8 @@ const handleConfirmPayment = async () => {
     const remainingDebt = previousDebt - paid;
 
     // ===== تحديث أو حذف الدين فقط =====
-    if (remainingDebt <= 0) {
-      await deleteDoc(debtRef);
-    } else {
-      await updateDoc(debtRef, { debt: remainingDebt });
-    }
+    await updateDoc(debtRef, { debt: remainingDebt });
+
 
     // ===== تسجيل السداد في debtsPayments =====
     await addDoc(collection(db, "debtsPayments"), {
@@ -293,17 +294,11 @@ const handleConfirmPayment = async () => {
             <div className="inputContainer">
               <label><CiSearch /></label>
               <input
-                type="text"
-                list="code"
-                placeholder="ابحث بالاسم"
+                type="date"
                 value={searchCode}
                 onChange={(e) => setSearchCode(e.target.value)}
               />
-              <datalist id="code">
-                {customers.map((c) => (
-                  <option key={c.id} value={c.name} />
-                ))}
-              </datalist>
+
             </div>
           </div>
 
