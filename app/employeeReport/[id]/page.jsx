@@ -204,12 +204,23 @@ function EmployeeReports() {
         {/* form إضافة ساعة/خصم/علاوة */}
         <div className={styles.hourForm}>
           <h3>إضافة سجل ساعة</h3>
-          <label>التاريخ:</label><input type="date" value={hourDate} onChange={e=>setHourDate(e.target.value)} />
-          <label>حضور:</label><input type="time" value={checkIn} onChange={e=>setCheckIn(e.target.value)} />
-          <label>انصراف:</label><input type="time" value={checkOut} onChange={e=>setCheckOut(e.target.value)} />
-          <button onClick={handleSaveHourRecord}>حفظ سجل</button>
-          <button style={{marginLeft:10}} onClick={()=>{setAdjustType("deduction"); setShowPopup(true)}}>خصم على الموظف</button>
-          <button style={{marginLeft:10}} onClick={()=>{setAdjustType("bonus"); setShowPopup(true)}}>علاوة</button>
+          <label>التاريخ:</label>
+          <div className="inputContainer">
+            <input type="date" value={hourDate} onChange={e=>setHourDate(e.target.value)} />
+          </div>
+          <label>حضور:</label>
+          <div className="inputContainer">
+            <input type="time" value={checkIn} onChange={e=>setCheckIn(e.target.value)} />
+          </div>
+          <label>انصراف:</label>
+          <div className="inputContainer">
+            <input type="time" value={checkOut} onChange={e=>setCheckOut(e.target.value)} />
+          </div>
+          <div className={styles.btns}>
+             <button onClick={handleSaveHourRecord}>حفظ سجل</button>
+            <button onClick={()=>{setAdjustType("deduction"); setShowPopup(true)}}>خصم على الموظف</button>
+            <button onClick={()=>{setAdjustType("bonus"); setShowPopup(true)}}>علاوة</button>
+          </div>
         </div>
 
         {/* جدول */}
