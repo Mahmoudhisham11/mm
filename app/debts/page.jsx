@@ -158,9 +158,20 @@ function Debts() {
 
 const filteredCustomers = customers.filter((c) => {
   if (!c.date) return false;
-  const dateStr = c.date.toDate().toLocaleDateString("en-GB"); // أو "ar-EG" لو تحب العربي
-  return dateStr.includes(searchCode);
+
+  // حول الـ Timestamp لـ Date
+  const dateObj = c.date.toDate();
+
+  // استخرج اليوم والشهر والسنة
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const year = dateObj.getFullYear();
+
+  const dateStr = `${day}/${month}/${year}`; // الشكل: DD/MM/YYYY
+
+  return dateStr.includes(searchCode); // البحث يكون على DD/MM/YYYY
 });
+
 
 
 
