@@ -111,6 +111,7 @@ function Debts() {
     dateInput: form.dateInput,
     date: new Date(),
     shop: shop,
+    aslDebt: form.debt,
   });
 
   // ===== تسجيل السداد إذا موجود
@@ -160,17 +161,20 @@ const filteredCustomers = customers.filter((c) => {
   if (!c.date) return false;
 
   // حول الـ Timestamp لـ Date
-  const dateObj = c.date.toDate();
+  const dateObj = c.date.toDate ? c.date.toDate() : new Date(c.date);
 
   // استخرج اليوم والشهر والسنة
   const day = String(dateObj.getDate()).padStart(2, '0');
   const month = String(dateObj.getMonth() + 1).padStart(2, '0');
   const year = dateObj.getFullYear();
 
-  const dateStr = `${day}/${month}/${year}`; // الشكل: DD/MM/YYYY
+  // حولها لصيغة YYYY-MM-DD عشان متوافقة مع input type="date"
+  const dateStr = `${year}-${month}-${day}`;
 
-  return dateStr.includes(searchCode); // البحث يكون على DD/MM/YYYY
+  // ابحث بالـ searchCode
+  return dateStr.includes(searchCode); // searchCode من input type="date"
 });
+
 
 
 
@@ -516,6 +520,7 @@ const handleConfirmPayment = async () => {
               <h3 style={{ margin: 0 }}>تفاصيل السداد</h3>
               <button onClick={closeDetailsPopup} style={{ background: "transparent", border: "none", fontSize: 18, cursor: "pointer" }}>✖</button>
             </div>
+            <h3>اصل الدين: {aslDebt}</h3>
 
             {detailsPayments.length === 0 ? (
   <p>لا توجد مدفوعات لهذا العميل.</p>
