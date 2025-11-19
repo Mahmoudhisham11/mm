@@ -562,9 +562,9 @@ const computeTempColorsQty = () => {
             }
             svg.barcode {
               width: 36mm;
-              height: 10mm;
-              margin-top: 0;
+              height: 15mm;
             }
+
           </style>
         </head>
         <body>
@@ -578,7 +578,9 @@ const computeTempColorsQty = () => {
               JsBarcode("#barcode", "${product.code}", {
                 format: "CODE128",
                 displayValue: false,
-                margin: 0
+                margin: 0,
+                width: 1.5,
+                height: 15
               });
               setTimeout(() => {
                 window.print();
