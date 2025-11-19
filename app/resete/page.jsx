@@ -40,11 +40,13 @@ function Resete() {
 
   return (
     <div className={styles.resete}>
-      <div className={styles.title}>
+      <div className={styles.invoice}>
+        <div className={styles.title}>
         <button onClick={() => router.push('/')} className={styles.btnBack}>رجوع</button>
         <div className={styles.imageContainer}>
           <Image src={resetImage} fill style={{ objectFit: 'cover' }} alt="logo" />
         </div>
+      </div>
       </div>
 
       {/* عرض الفاتورة على الشاشة */}
@@ -81,19 +83,20 @@ function Resete() {
           </tfoot>
         </table>
       </div>
+      <div className={styles.invoice}>
+        <div className={styles.text}>
+          <p>عدد الاصناف:<span>{invoice.length}</span></p>
+          <p>العنوان: 1 جول جمال الف مسكن</p>
+          <p style={{ textAlign: 'center', marginTop: '5px'}}>شكراً لتعاملكم معنا!</p>
+        </div>
 
-      <div className={styles.text}>
-        <p>عدد الاصناف:<span>{invoice.length}</span></p>
-        <p>العنوان: 1 جول جمال الف مسكن</p>
-        <p style={{ textAlign: 'center', marginTop: '5px'}}>شكراً لتعاملكم معنا!</p>
-      </div>
+        <div className={styles.btn}>
+          <button onClick={handlePrint}>طباعة الفاتورة</button>
+        </div>
 
-      <div className={styles.btn}>
-        <button onClick={handlePrint}>طباعة الفاتورة</button>
-      </div>
-
-      <div className={styles.footer}>
-        <strong>تم التوجيه بواسطة: Devoria</strong>
+        <div className={styles.footer}>
+          <strong>تم التوجيه بواسطة: Devoria</strong>
+        </div>
       </div>
     </div>
   );
