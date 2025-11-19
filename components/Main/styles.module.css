@@ -384,16 +384,20 @@
   color: #fff;
   transform: translateY(-1px);
 }
-
-/* زر تقفيل اليوم */
-.resetBtns button:last-child {
-  background: linear-gradient(145deg, rgba(255, 220, 220, 0.6), rgba(252, 57, 57, 0.15));
-  color: red;
+.headerBtns {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
 }
-.resetBtns button:last-child:hover {
-  background: red;
-  color: #fff;
-  transform: translateY(-1px);
+.headerBtns button {
+  font-size: 20px;
+  background-color: var(--main-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 5px;
+  cursor: pointer;
 }
 .tableInput {
     background-color: transparent;

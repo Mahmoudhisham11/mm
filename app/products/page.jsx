@@ -315,6 +315,15 @@ const handleDelete = async (product) => {
 };
 
 
+const computeTempColorsQty = () => {
+  if (!tempColors || tempColors.length === 0) return Number(form.quantity) || 0;
+  return tempColors.reduce((total, c) => {
+    const colorQty = c.sizes && c.sizes.length
+      ? c.sizes.reduce((sum, s) => sum + Number(s.qty || 0), 0)
+      : 0;
+    return total + colorQty;
+  }, 0);
+};
 
 
 
@@ -731,7 +740,6 @@ const confirmDeleteSelected = async () => {
                   <p>اجمالي البيع: {totalSell} EGP</p>
                   <p>اجمالي المنتجات: {totalProducts} </p>
                 </div>
-
                 <div className={styles.tableContainer}>
                   <table>
                     <thead>
@@ -752,19 +760,15 @@ const confirmDeleteSelected = async () => {
                       {filteredProducts.map((product) => {
                         const colorsList = product.colors || [];
                         let totalQ = 0;
-                        const colorsQtyStr = colorsList.map(c => {
+
+                        // حساب الكمية الإجمالية لكل المنتج
+                        colorsList.forEach(c => {
                           const colorTotal = (c.sizes && c.sizes.length)
                             ? c.sizes.reduce((s, it) => s + Number(it.qty || 0), 0)
                             : (c.quantity || 0);
                           totalQ += colorTotal;
-                          return `${c.color} (${colorTotal})`;
-                        }).join(" — ");
-                        const sizesDetail = colorsList.map(c => {
-                          const detail = (c.sizes && c.sizes.length)
-                            ? c.sizes.map(s => `${s.size}(${s.qty})`).join(", ")
-                            : (c.quantity ? `كمية: ${c.quantity}` : "-");
-                          return `${c.color}: ${detail}`;
-                        }).join(" | ");
+                        });
+
                         return (
                           <tr key={product.id}>
                             <td>{product.code}</td>
@@ -773,9 +777,68 @@ const confirmDeleteSelected = async () => {
                             <td>{product.sellPrice || 0} EGP</td>
                             <td>{product.finalPrice} EGP</td>
                             <td>{totalQ || product.quantity || 0}</td>
-                            <td>{colorsQtyStr || "-"}</td>
-                            <td style={{ whiteSpace: 'pre-wrap', maxWidth: 300 }}>{sizesDetail || "-"}</td>
+
+                            {/* خلية الألوان مع الكمية */}
+                            <td style={{ maxWidth: 150 }}>
+                              {colorsList.length === 0 ? (
+                                "-"
+                              ) : (
+                                colorsList.map(c => {
+                                  const colorTotal = (c.sizes && c.sizes.length)
+                                    ? c.sizes.reduce((s, it) => s + Number(it.qty || 0), 0)
+                                    : (c.quantity || 0);
+                                  return (
+                                    <div
+                                      key={c.color}
+                                      style={{
+                                        whiteSpace: "nowrap",
+                                        border: "1px solid #eee",
+                                        padding: "2px 6px",
+                                        borderRadius: 4,
+                                        background: "#f9f9f9",
+                                        fontSize: 14,
+                                        marginBottom: 4
+                                      }}
+                                    >
+                                      <strong>{c.color}:</strong> {colorTotal}
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </td>
+
+                            {/* خلية تفصيل المقاسات */}
+                            <td style={{ maxWidth: 300 }}>
+                              {colorsList.length === 0 ? (
+                                "-"
+                              ) : (
+                                colorsList.map(c => {
+                                  const detail = (c.sizes && c.sizes.length)
+                                    ? c.sizes.map(s => `${s.size}(${s.qty})`).join(", ")
+                                    : (c.quantity ? `كمية: ${c.quantity}` : "-");
+                                  return (
+                                    <div
+                                      key={c.color}
+                                      style={{
+                                        whiteSpace: "nowrap",
+                                        border: "1px solid #eee",
+                                        padding: "2px 6px",
+                                        borderRadius: 4,
+                                        background: "#f9f9f9",
+                                        fontSize: 14,
+                                        marginBottom: 4
+                                      }}
+                                    >
+                                      <strong>{c.color}:</strong> {detail}
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </td>
+
                             <td>{product.date?.toDate ? product.date.toDate().toLocaleDateString("ar-EG") : product.date}</td>
+
+                            {/* خيارات */}
                             <td className={styles.actions}>
                               <button onClick={() => handleDelete(product)}><FaRegTrashAlt /></button>
                               <button onClick={() => handleEdit(product)}><MdOutlineEdit /></button>
@@ -787,6 +850,7 @@ const confirmDeleteSelected = async () => {
                     </tbody>
                   </table>
                 </div>
+
               </div>
             )}
 
@@ -877,6 +941,10 @@ const confirmDeleteSelected = async () => {
 
                 <div className={styles.colorsBox}>
                   <h4>تفاصيل الألوان والمقاسات</h4>
+                  <div style={{ marginBottom: 10, fontWeight: 600 }}>
+                    إجمالي الكمية قبل الإضافة: {computeTempColorsQty()}
+                  </div>
+
                   {colors.length === 0 && <p className={styles.emptyState}>لم يتم اضافة الوان بعد</p>}
                   {colors.map((c, idx) => (
                     <div key={idx} className={styles.sizeRow}>

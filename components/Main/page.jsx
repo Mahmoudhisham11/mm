@@ -821,113 +821,127 @@ const handleSaveReport = async () => {
 };
 
 
-const handleCloseDay = async () => {
-  try {
-    const today = new Date();
-    const day = String(today.getDate()).padStart(2, '0');
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const year = today.getFullYear();
-    const todayStr = `${day}/${month}/${year}`; // "DD/MM/YYYY"
+  const handleCloseDay = async () => {
+    // 🟡 إضافة تأكيد قبل التنفيذ
+    const confirmed = window.confirm("هل أنت متأكد أنك تريد تقفيل اليوم؟");
+    if (!confirmed) return; // لو المستخدم ضغط إلغاء، نوقف التنفيذ
 
-    // 1️⃣ استعلام عن مبيعات اليوم لنفس المتجر
-    const salesQuery = query(
-      collection(db, "dailySales"),
-      where("shop", "==", shop)
-    );
-    const salesSnapshot = await getDocs(salesQuery);
+    try {
+      const today = new Date();
+      const day = String(today.getDate()).padStart(2, '0');
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const year = today.getFullYear();
+      const todayStr = `${day}/${month}/${year}`; // "DD/MM/YYYY"
 
-    if (salesSnapshot.empty) {
-      alert("لا يوجد عمليات لتقفيلها اليوم");
-      return;
-    }
+      const userName = localStorage.getItem("userName") || "غير معروف";
 
-    // 2️⃣ استعلام عن كل المصروفات لنفس المتجر
-    const masrofatQuery = query(
-      collection(db, "masrofat"),
-      where("shop", "==", shop)
-    );
-    const masrofatSnapshot = await getDocs(masrofatQuery);
+      // جلب مبيعات اليوم
+      const salesQuery = query(
+        collection(db, "dailySales"),
+        where("shop", "==", shop)
+      );
+      const salesSnapshot = await getDocs(salesQuery);
 
-    // 3️⃣ حساب إجمالي المبيعات
-    let totalSales = 0;
-    salesSnapshot.forEach(docSnap => {
-      const data = docSnap.data();
-      totalSales += data.total || 0;
-    });
-
-    // 4️⃣ حساب إجمالي المصروفات الخاصة باليوم والمصروفات من المرتجعات
-    let totalMasrofat = 0;
-    let returnedProfit = 0;
-    masrofatSnapshot.forEach(docSnap => {
-      const data = docSnap.data();
-      if (data.date === todayStr) {
-        if (data.reason === "فاتورة مرتجع") {
-          returnedProfit += data.profit || 0; // ربح المرتجع
-        } else {
-          totalMasrofat += data.masrof || 0; // المصروفات العادية
-        }
+      if (salesSnapshot.empty) {
+        alert("لا يوجد عمليات لتقفيلها اليوم");
+        return;
       }
-    });
 
-    let netMasrof = 0;
-    masrofatSnapshot.forEach(docSnap => {
-      const data = docSnap.data();
-      netMasrof += data.masrof;
-    });
+      // جلب المصروفات
+      const masrofatQuery = query(
+        collection(db, "masrofat"),
+        where("shop", "==", shop)
+      );
+      const masrofatSnapshot = await getDocs(masrofatQuery);
 
-    // 6️⃣ إنشاء Batch لحفظ التقارير وحذف المبيعات
-    const batch = writeBatch(db);
+      // حساب إجمالي المبيعات
+      let totalSales = 0;
+      const allSales = [];
 
-    // حفظ كل مستند من dailySales في reports
-    for (const docSnap of salesSnapshot.docs) {
-      const data = docSnap.data();
-      const reportRef = doc(collection(db, "reports"));
-      batch.set(reportRef, data); // حفظ نسخة من كل عملية في reports
-      batch.delete(docSnap.ref);   // حذف مستند dailySales الأصلي
-    }
-
-    // حفظ صافي اليوم في dailyProfit
-    const profitData = {
-      shop,
-      date: todayStr,
-      totalSales,
-      totalMasrofat: Number(netMasrof),
-      returnedProfit,
-      createdAt: Timestamp.now()
-    };
-    const profitRef = doc(collection(db, "dailyProfit"));
-    batch.set(profitRef, profitData);
-
-    // ⭐⭐⭐ الإضافة الجديدة: نسخ كل المصروفات قبل حذفها ⭐⭐⭐
-    masrofatSnapshot.forEach(docSnap => {
-      const data = docSnap.data();
-      const historyRef = doc(collection(db, "masrofatHistory"));
-      batch.set(historyRef, {
-        ...data,
-        closedAt: todayStr,
-        closedAtTimestamp: Timestamp.now()
+      salesSnapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        allSales.push({ id: docSnap.id, ...data });
+        totalSales += data.total || 0;
       });
-    });
 
-    // 7️⃣ حذف كل المصروفات الخاصة باليوم
-    masrofatSnapshot.forEach(docSnap => {
-      const data = docSnap.data();
-      if (data.date === todayStr) {
+      // حساب المصروفات
+      let totalMasrofat = 0;
+      let returnedProfit = 0;
+      let netMasrof = 0;
+
+      const allMasrofat = [];
+
+      masrofatSnapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        allMasrofat.push({ id: docSnap.id, ...data });
+
+        netMasrof += data.masrof || 0;
+
+        if (data.date === todayStr) {
+          if (data.reason === "فاتورة مرتجع") {
+            returnedProfit += data.profit || 0;
+          } else {
+            totalMasrofat += data.masrof || 0;
+          }
+        }
+      });
+
+      // Batch
+      const batch = writeBatch(db);
+
+      // نقل dailySales → reports + حذفهم
+      for (const docSnap of salesSnapshot.docs) {
+        const data = docSnap.data();
+        const reportRef = doc(collection(db, "reports"));
+        batch.set(reportRef, {
+          ...data,
+          closedBy: userName
+        });
         batch.delete(docSnap.ref);
       }
-    });
 
-    // 8️⃣ تنفيذ كل العمليات دفعة واحدة
-    await batch.commit();
+      // حفظ dailyProfit
+      const profitData = {
+        shop,
+        date: todayStr,
+        totalSales,
+        totalMasrofat: Number(netMasrof),
+        returnedProfit,
+        createdAt: Timestamp.now(),
+        closedBy: userName
+      };
+      const profitRef = doc(collection(db, "dailyProfit"));
+      batch.set(profitRef, profitData);
 
-    alert("تم تقفيل اليوم بنجاح ✅");
-  } catch (error) {
-    console.error("خطأ أثناء تقفيل اليوم:", error);
-    alert("حدث خطأ أثناء تقفيل اليوم");
-  }
-};
+      // حذف مصروفات اليوم فقط
+      masrofatSnapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data.date === todayStr) {
+          batch.delete(docSnap.ref);
+        }
+      });
 
+      // ⭐⭐⭐ إنشاء سجل شامل لتقفيل اليوم ⭐⭐⭐
+      const closeRef = doc(collection(db, "closeDayHistory"));
+      batch.set(closeRef, {
+        shop,
+        closedBy: userName,
+        closedAt: todayStr,
+        closedAtTimestamp: Timestamp.now(),
+        sales: allSales,
+        masrofat: allMasrofat
+      });
 
+      // تنفيذ العمليات
+      await batch.commit();
+
+      alert("تم تقفيل اليوم بنجاح ✅");
+
+    } catch (error) {
+      console.error("خطأ أثناء تقفيل اليوم:", error);
+      alert("حدث خطأ أثناء تقفيل اليوم");
+    }
+  };
 
   const handleDeleteInvoice = async () => {
     if (!shop) return;
@@ -1184,9 +1198,7 @@ const handleReturnProduct = async (item, invoiceId) => {
             <button onClick={() => setOpenSideBar(true)}><FaBars /></button>
             <h3>المبيعات اليومية</h3>
           </div>
-            <button onClick={toggleHidden} className={styles.eye} style={{marginTop: '15px'}}>
-            {isHidden ? "👁️ إظهار الأرقام" : "🙈 إخفاء الأرقام"}
-          </button>
+            
             <div className={styles.searchBox}>
             <IoMdSearch />
             <input
@@ -1196,6 +1208,14 @@ const handleReturnProduct = async (item, invoiceId) => {
               onChange={(e) => setSearchClient(e.target.value)}
             />
           </div>
+          <div className={styles.headerBtns}>
+               <button onClick={toggleHidden}>
+                {isHidden ? "👁️ إظهار الأرقام" : "🙈 إخفاء الأرقام"}
+              </button>
+              <button onClick={handleCloseDay}>
+                    تقفيل اليوم
+              </button>
+            </div>
         </div>
 
         <div className={styles.salesContainer}>
@@ -1332,7 +1352,6 @@ const handleReturnProduct = async (item, invoiceId) => {
           <div className={styles.topReset}>
             <div className={styles.resetTitle}>
               <h3>محتوى الفاتورة</h3>
-              <button onClick={() => setShowClientPopup(true)}>اضف العميل</button>
             </div>
             <div className={styles.resetActions}>
               <div className={styles.inputBox}>
@@ -1350,65 +1369,50 @@ const handleReturnProduct = async (item, invoiceId) => {
                   ))}
                 </datalist>
               </div>
-              <button onClick={() => setShowDiscountPopup(true)}>خصم</button>
               <button onClick={handleDeleteInvoice}>حذف الفاتورة</button>
             </div>
           </div>
           <hr />
           <div className={styles.orderBox}>
-  {cart.map((item) => (
-    <div
-      className={styles.ordersContainer}
-      key={item.id}
-    >
-      <div className={styles.orderInfo}>
-        <div className={styles.content}>
-          <button onClick={(e) => { e.stopPropagation(); handleDeleteCartItem(item.id); }}>
-            <FaRegTrashAlt />
-          </button>
-          <button
-  onClick={(e) => { 
-    e.stopPropagation(); // يمنع propagation
-    openEditPricePopup(item); 
-  }}
->
-   ت
-</button>
-
-          <div className={styles.text}>
-            <h4>{item.name} {item.color ? ` - ${item.color}` : ""} {item.size ? ` - ${item.size}` : ""}</h4>
-            <p>{item.total} EGP</p>
+            {cart.map((item) => (
+              <div
+                className={styles.ordersContainer}
+                key={item.id}
+              >
+                <div className={styles.orderInfo}>
+                  <div className={styles.content}>
+                    <button onClick={(e) => { e.stopPropagation(); handleDeleteCartItem(item.id); }}>
+                      <FaRegTrashAlt />
+                    </button>
+                    <div className={styles.text}>
+                      <h4>{item.name} {item.color ? ` - ${item.color}` : ""} {item.size ? ` - ${item.size}` : ""}</h4>
+                      <p>{item.total} EGP</p>
+                    </div>
+                  </div>
+                  <div className={styles.qtyInput}>
+                    <button onClick={(e) => { e.stopPropagation(); handleQtyChange(item, -1); }}>-</button>
+                    <input type="text" value={item.quantity} readOnly />
+                    <button onClick={(e) => { e.stopPropagation(); handleQtyChange(item, 1); }}>+</button>
+                  </div>
+                </div>
+              </div>
+              ))}
           </div>
-        </div>
-        <div className={styles.qtyInput}>
-          <button onClick={(e) => { e.stopPropagation(); handleQtyChange(item, -1); }}>-</button>
-          <input type="text" value={item.quantity} readOnly />
-          <button onClick={(e) => { e.stopPropagation(); handleQtyChange(item, 1); }}>+</button>
-        </div>
-      </div>
-    </div>
-  ))}
-</div>
 
           <div className={styles.totalContainer}>
             <hr />
             <div className={styles.totalBox}>
               <h3>الاجمالي</h3>
-
               {/* NEW: show profit and discount above total */}
               <div style={{ marginBottom: 8 }}>
                 {/* <div><strong>📈 ربح الفاتورة:</strong> {profit} جنيه</div> */}
                 <div><strong>🔖 الخصم:</strong> {appliedDiscount} جنيه {appliedDiscount > 0 ? `(ملاحظة: ${discountNotes || '-'})` : null}</div>
                 <div><strong>🔖 الحد الاقصى للخصم:</strong> {appliedDiscount} جنيه {totalMaxDiscount > 0 ? `(ملاحظة: ${discountNotes || '-'})` : null}</div>
               </div>
-
               <strong>{finalTotal} EGP</strong>
             </div>
             <div className={styles.resetBtns}>
-              <button onClick={handleSaveReport}>حفظ</button>
-              <button onClick={handleCloseDay}>
-                تقفيل اليوم
-              </button>
+              <button onClick={() => setShowClientPopup(true)}>اضف العميل</button>              
             </div>
           </div>
         </div>
@@ -1435,7 +1439,6 @@ const handleReturnProduct = async (item, invoiceId) => {
                 </option>
               ))}
             </select>
-
             <div className={styles.popupBtns}>
               <button onClick={handleSaveReport}>حفظ</button>
               <button onClick={() => setShowClientPopup(false)}>إلغاء</button>
@@ -1472,13 +1475,10 @@ const handleReturnProduct = async (item, invoiceId) => {
         </div>
       )}
 
-      {/* NEW: Variant selection popup (color buttons -> sizes list -> qty per size) */}
       {showVariantPopup && variantProduct && (
         <div className={styles.popupOverlay} onClick={() => { setShowVariantPopup(false); setVariantProduct(null); }}>
           <div className={styles.popupBox} onClick={(e) => e.stopPropagation()}>
             <h3>اختر اللون والمقاسات — {variantProduct.name}</h3>
-
-            {/* الألوان كـ buttons */}
             {variantProduct.colors && variantProduct.colors.length > 0 && (
               <>
                 <label>الألوان المتاحة:</label>
@@ -1638,99 +1638,95 @@ const handleReturnProduct = async (item, invoiceId) => {
         </div>
       )}
       {editPricePopup && productToEdit && (
-  <div className={styles.popupOverlay}>
-    <div className={styles.popupBox}>
-      <h3>تعديل سعر {productToEdit.name}</h3>
-      <div className="inputContainer">
-        <input
-        type="number"
-        value={newPriceInput}
-        onChange={(e) => setNewPriceInput(e.target.value)}
-      />
+        <div className={styles.popupOverlay}>
+          <div className={styles.popupBox}>
+            <h3>تعديل سعر {productToEdit.name}</h3>
+            <div className="inputContainer">
+              <input
+              type="number"
+              value={newPriceInput}
+              onChange={(e) => setNewPriceInput(e.target.value)}
+            />
+            </div>
+            <div className={styles.popupBtns}>
+              <button onClick={handleSaveNewPrice}>حفظ السعر</button>
+            <button onClick={() => setEditPricePopup(false)}>إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showPricePopup && (
+        <div className={styles.popupOverlay}>
+      <div className={styles.popupBox}>
+          <h3>أدخل السعر للمنتج</h3>
+          <h4>السعر النهائي الافتراضي: {variantProduct?.finalPrice}</h4>
+          <input 
+            type="number" 
+            value={newPriceInput} 
+            onChange={(e) => setNewPriceInput(Number(e.target.value))} 
+          />
+        <div className={styles.popupBtns}>
+          <button onClick={async () => {
+        if (!variantProduct) return;
+
+        if (!newPriceInput || newPriceInput < variantProduct.finalPrice) {
+          alert(`السعر الذي أدخلته أقل من السعر الافتراضي: ${variantProduct.finalPrice}`);
+          return;
+        }
+        if (!newPriceInput || newPriceInput > variantProduct.sellPrice) {
+          alert(`السعر الذي أدخلته اكبر من السعر الافتراضي: ${variantProduct.sellPrice}`);
+          return;
+        }
+
+        const hasColors = variantProduct.colors && variantProduct.colors.length > 0;
+        const hasSizes = variantProduct.sizes && variantProduct.sizes.length > 0;
+
+        if (!hasColors && !hasSizes) {
+          // إضافة المنتج للسلة أولًا
+          await addDoc(collection(db, "cart"), {
+            name: variantProduct.name,
+            sellPrice: Number(newPriceInput),
+            productPrice: variantProduct.sellPrice,
+            quantity: 1,
+            type: variantProduct.type,
+            total: Number(newPriceInput),
+            date: new Date(),
+            shop: shop,
+            color: "",
+            size: "",
+            originalProductId: variantProduct.id,
+            code: variantProduct.code || "",
+            buyPrice: variantProduct.buyPrice || 0,
+          });
+
+          // تحديث المخزون في Firestore لو محتاج
+          const prodRef = doc(db, "lacosteProducts", variantProduct.id);
+          const prodSnap = await getDoc(prodRef);
+          if (prodSnap.exists()) {
+            const prodData = prodSnap.data();
+            if (prodData.quantity !== undefined) {
+              const newQty = Math.max(0, Number(prodData.quantity) - 1);
+              if (newQty <= 0) await deleteDoc(prodRef);
+              else await updateDoc(prodRef, { quantity: newQty });
+            }
+          }
+
+          // إغلاق popup
+          setShowPricePopup(false);
+          setVariantProduct(null);
+          setNewPriceInput("");
+          return;
+        }
+
+        // الكود القديم للمنتجات اللي ليها ألوان أو مقاسات...
+      }}>
+        أضف للسلة
+      </button>
+          <button onClick={() => setShowPricePopup(false)}>إلغاء</button>
+        </div>
       </div>
-      <div className={styles.popupBtns}>
-        <button onClick={handleSaveNewPrice}>حفظ السعر</button>
-      <button onClick={() => setEditPricePopup(false)}>إلغاء</button>
-      </div>
-    </div>
-  </div>
-)}
-{showPricePopup && (
-  <div className={styles.popupOverlay}>
- <div className={styles.popupBox}>
-     <h3>أدخل السعر للمنتج</h3>
-     <h4>السعر النهائي الافتراضي: {variantProduct?.finalPrice}</h4>
-    <input 
-      type="number" 
-      value={newPriceInput} 
-      onChange={(e) => setNewPriceInput(Number(e.target.value))} 
-    />
-  <div className={styles.popupBtns}>
-    <button onClick={async () => {
-  if (!variantProduct) return;
-
-  if (!newPriceInput || newPriceInput < variantProduct.finalPrice) {
-    alert(`السعر الذي أدخلته أقل من السعر الافتراضي: ${variantProduct.finalPrice}`);
-    return;
-  }
-  if (!newPriceInput || newPriceInput > variantProduct.sellPrice) {
-    alert(`السعر الذي أدخلته اكبر من السعر الافتراضي: ${variantProduct.sellPrice}`);
-    return;
-  }
-
-  const hasColors = variantProduct.colors && variantProduct.colors.length > 0;
-  const hasSizes = variantProduct.sizes && variantProduct.sizes.length > 0;
-
-  if (!hasColors && !hasSizes) {
-    // إضافة المنتج للسلة أولًا
-    await addDoc(collection(db, "cart"), {
-      name: variantProduct.name,
-      sellPrice: Number(newPriceInput),
-      productPrice: variantProduct.sellPrice,
-      quantity: 1,
-      type: variantProduct.type,
-      total: Number(newPriceInput),
-      date: new Date(),
-      shop: shop,
-      color: "",
-      size: "",
-      originalProductId: variantProduct.id,
-      code: variantProduct.code || "",
-      buyPrice: variantProduct.buyPrice || 0,
-    });
-
-    // تحديث المخزون في Firestore لو محتاج
-    const prodRef = doc(db, "lacosteProducts", variantProduct.id);
-    const prodSnap = await getDoc(prodRef);
-    if (prodSnap.exists()) {
-      const prodData = prodSnap.data();
-      if (prodData.quantity !== undefined) {
-        const newQty = Math.max(0, Number(prodData.quantity) - 1);
-        if (newQty <= 0) await deleteDoc(prodRef);
-        else await updateDoc(prodRef, { quantity: newQty });
-      }
-    }
-
-    // إغلاق popup
-    setShowPricePopup(false);
-    setVariantProduct(null);
-    setNewPriceInput("");
-    return;
-  }
-
-  // الكود القديم للمنتجات اللي ليها ألوان أو مقاسات...
-}}>
-  أضف للسلة
-</button>
-    <button onClick={() => setShowPricePopup(false)}>إلغاء</button>
-  </div>
- </div>
-  </div>
-)}
-
-
-
-
+        </div>
+      )}
     </div>
   );
 }

@@ -42,6 +42,7 @@
     const [showReturns, setShowReturns] = useState(false)
     const [returnsList, setReturnsList] = useState([])
     const shop = typeof window !== "undefined" ? localStorage.getItem("shop") : "";
+    const userName = typeof window !== "undefined" ? localStorage.getItem("userName") : "";
 
 
     useEffect(() => {
@@ -544,140 +545,169 @@
             <button className={styles.exeBtn} onClick={() => setShowReturns(!showReturns)} style={{marginRight: '15px'}}>
               {showReturns ? "إخفاء فواتير المرتج" : "عرض فواتير المرتجع"}
             </button>
-            <button
-              className={styles.exeBtn}
-              onClick={() => setShowDeleted(!showDeleted)}
-              style={{ marginRight: "15px" }}
-            >
-              {showDeleted ? "إخفاء مرتجع المنتجات" : "عرض مرتجع المنتجات"}
-            </button>
+            {(() => {
+                const currentUser = localStorage.getItem("userName"); // أو الاسم اللي مخزن عندك
+                if (currentUser === "mostafabeso10@gmail.com" || currentUser === "medo") {
+                  return (
+                    <button
+                      className={styles.exeBtn}
+                      onClick={() => setShowDeleted(!showDeleted)}
+                      style={{ marginRight: "15px" }}
+                    >
+                      {showDeleted ? "إخفاء مرتجع المنتجات" : "عرض مرتجع المنتجات"}
+                    </button>
+                  );
+                }
+                return null; // مش هيتعرض أي حاجة لو الشرط مش متحقق
+              })()}
+
           </div>
-
           {!showReturns && (
-<div className={styles.tableContainer}>
-  <table>
-    <thead>
-      <tr>
-        {showDeleted ? (
-          <>
-            <th>اسم المنتج</th>
-            <th>الكمية</th>
-            <th>سعر البيع</th>
-            <th>تاريخ الحذف</th>
-            <th>إجراء</th>
-          </>
-        ) : showReturns ? (
-          <>
-            <th>المنتج</th>
-            <th>الكمية</th>
-            <th>سعر البيع</th>
-            <th>تاريخ الفاتورة الأصلية</th>
-            <th>تاريخ المرتجع</th>
-          </>
-        ) : (
-          <>
-            <th>اسم العميل</th>
-            <th>رقم الهاتف</th>
-            <th>عدد العناصر</th>
-            <th>الإجمالي</th>
-            <th>التاريخ</th>
-            <th>عرض التفاصيل</th>
-          </>
-        )}
-      </tr>
-    </thead>
-    <tbody>
-      {showDeleted ? (
-        deletedProducts.length === 0 ? (
-          <tr>
-            <td colSpan={5} style={{ textAlign: "center", padding: 20 }}>
-              لا توجد منتجات محذوفة.
-            </td>
-          </tr>
-        ) : (
-          deletedProducts.map((item) => {
-            const delMs = toMillis(item.deletedAt);
-            const delDateStr = delMs
-              ? new Date(delMs).toLocaleDateString("ar-EG")
-              : item.deletedAt || "-";
+  <>
+    {/* زر عرض/إخفاء المنتجات المحذوفة يظهر فقط للمستخدمين المسموح لهم */}
+    {["mostafabeso10@gmail.com", "medo"].includes(localStorage.getItem("userEmail")) && (
+      <button
+        className={styles.exeBtn}
+        onClick={() => setShowDeleted(!showDeleted)}
+        style={{ marginRight: "15px" }}
+      >
+        {showDeleted ? "إخفاء مرتجع المنتجات" : "عرض مرتجع المنتجات"}
+      </button>
+    )}
 
-            return (
-              <tr key={item.id}>
-                <td>{item.name}</td>
-                <td>{item.deletedTotalQty}</td>
-                <td>{item.buyPrice}</td>
-                <td>{delDateStr}</td>
-              </tr>
-            );
-          })
-        )
-      ) : showReturns ? (
-        displayedReturns.length === 0 ? (
-          <tr>
-            <td colSpan={5} style={{ textAlign: "center", padding: 20 }}>
-              لا توجد مرتجعات في الفترة المحددة.
-            </td>
-          </tr>
-        ) : (
-          displayedReturns.map((ret) => {
-            const origMs = toMillis(ret.originalDate);
-            const origDateStr = origMs
-              ? new Date(origMs).toLocaleDateString("ar-EG")
-              : ret.originalDate || "-";
-            const retMs = toMillis(ret.returnDate);
-            const retDateStr = retMs
-              ? new Date(retMs).toLocaleDateString("ar-EG")
-              : ret.returnDate || "-";
+    {/* إجمالي سعر المنتجات المحذوفة */}
+    {showDeleted && (
+      <div style={{ marginBottom: 10, fontWeight: 600 }}>
+        إجمالي سعر المنتجات المحذوفة: {deletedProducts.reduce(
+          (sum, item) => sum + (Number(item.buyPrice || 0) * Number(item.deletedTotalQty || 0)),
+          0
+        )} EGP
+      </div>
+    )}
 
-            return (
-              <tr key={ret.id}>
-                <td>{ret.item?.name}</td>
-                <td>{ret.item?.quantity}</td>
-                <td>{ret.item?.sellPrice}</td>
-                <td>{origDateStr}</td>
-                <td>{retDateStr}</td>
+    <div className={styles.tableContainer}>
+      <table>
+        <thead>
+          <tr>
+            {showDeleted ? (
+              <>
+                <th>اسم المنتج</th>
+                <th>الكمية</th>
+                <th>سعر البيع</th>
+                <th>تاريخ الحذف</th>
+                <th>إجراء</th>
+              </>
+            ) : showReturns ? (
+              <>
+                <th>المنتج</th>
+                <th>الكمية</th>
+                <th>سعر البيع</th>
+                <th>تاريخ الفاتورة الأصلية</th>
+                <th>تاريخ المرتجع</th>
+              </>
+            ) : (
+              <>
+                <th>اسم العميل</th>
+                <th>رقم الهاتف</th>
+                <th>عدد العناصر</th>
+                <th>الإجمالي</th>
+                <th>التاريخ</th>
+                <th>عرض التفاصيل</th>
+              </>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {showDeleted ? (
+            deletedProducts.length === 0 ? (
+              <tr>
+                <td colSpan={5} style={{ textAlign: "center", padding: 20 }}>
+                  لا توجد منتجات محذوفة.
+                </td>
               </tr>
-            );
-          })
-        )
-      ) : displayedReports.length === 0 ? (
-        <tr>
-          <td colSpan={6} style={{ textAlign: "center", padding: 20 }}>
-            لا توجد تقارير في الفترة المحددة.
-          </td>
-        </tr>
-      ) : (
-        displayedReports.map((report) => {
-          const total = Number(report.total ?? report.subtotal ?? 0);
-          return (
-            <tr key={report.id}>
-              <td>{report.clientName || "-"}</td>
-              <td>{report.phone || "-"}</td>
-              <td>{report.cart?.length || 0}</td>
-              <td>{total} EGP</td>
-              <td>
-                {report.date
-                  ? new Date(report.date.seconds * 1000).toLocaleDateString("ar-EG")
-                  : "-"}
-              </td>
-              <td>
-                <button
-                  className={styles.detailsBtn}
-                  onClick={() => openDrawer(report)}
-                >
-                  عرض التفاصيل
-                </button>
+            ) : (
+              deletedProducts.map((item) => {
+                const delMs = toMillis(item.deletedAt);
+                const delDateStr = delMs
+                  ? new Date(delMs).toLocaleDateString("ar-EG")
+                  : item.deletedAt || "-";
+
+                return (
+                  <tr key={item.id}>
+                    <td>{item.name}</td>
+                    <td>{item.deletedTotalQty}</td>
+                    <td>{item.buyPrice}</td>
+                    <td>{delDateStr}</td>
+                  </tr>
+                );
+              })
+            )
+          ) : showReturns ? (
+            displayedReturns.length === 0 ? (
+              <tr>
+                <td colSpan={5} style={{ textAlign: "center", padding: 20 }}>
+                  لا توجد مرتجعات في الفترة المحددة.
+                </td>
+              </tr>
+            ) : (
+              displayedReturns.map((ret) => {
+                const origMs = toMillis(ret.originalDate);
+                const origDateStr = origMs
+                  ? new Date(origMs).toLocaleDateString("ar-EG")
+                  : ret.originalDate || "-";
+                const retMs = toMillis(ret.returnDate);
+                const retDateStr = retMs
+                  ? new Date(retMs).toLocaleDateString("ar-EG")
+                  : ret.returnDate || "-";
+
+                return (
+                  <tr key={ret.id}>
+                    <td>{ret.item?.name}</td>
+                    <td>{ret.item?.quantity}</td>
+                    <td>{ret.item?.sellPrice}</td>
+                    <td>{origDateStr}</td>
+                    <td>{retDateStr}</td>
+                  </tr>
+                );
+              })
+            )
+          ) : displayedReports.length === 0 ? (
+            <tr>
+              <td colSpan={6} style={{ textAlign: "center", padding: 20 }}>
+                لا توجد تقارير في الفترة المحددة.
               </td>
             </tr>
-          );
-        })
-      )}
-    </tbody>
-  </table>
-</div>
-
-
+          ) : (
+            displayedReports.map((report) => {
+              const total = Number(report.total ?? report.subtotal ?? 0);
+              return (
+                <tr key={report.id}>
+                  <td>{report.clientName || "-"}</td>
+                  <td>{report.phone || "-"}</td>
+                  <td>{report.cart?.length || 0}</td>
+                  <td>{total} EGP</td>
+                  <td>
+                    {report.date
+                      ? new Date(report.date.seconds * 1000).toLocaleDateString("ar-EG")
+                      : "-"}
+                  </td>
+                  <td>
+                    <button
+                      className={styles.detailsBtn}
+                      onClick={() => openDrawer(report)}
+                    >
+                      عرض التفاصيل
+                    </button>
+                  </td>
+                </tr>
+              );
+            })
           )}
+        </tbody>
+      </table>
+    </div>
+  </>
+)}
 
           {showReturns && (
             <div className={styles.tableContainer}>

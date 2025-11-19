@@ -50,19 +50,19 @@ function SideBar({openSideBar, setOpenSideBar}) {
                 </Link>
                 <Link href={'/debts'} className={styles.actionLinks}>
                     <span><TbReportMoney/></span>
-                    <span>البضاعة</span>
+                    <span>فواتير البضاعة</span>
                 </Link>
                 <Link href={'/dailyReports'} className={styles.actionLinks}>
                     <span><TbReportMoney/></span>
                     <span>جرد يومي</span>
                 </Link>
-                <Link href={'/debts'} className={styles.actionLinks}>
-                    <span><TbReportMoney/></span>
-                    <span>البضاعة</span>
-                </Link>
                 <Link href={'/reports'} className={styles.actionLinks}>
                     <span><TbReportSearch/></span>
                     <span>المرتجعات</span>
+                </Link>
+                <Link href={'/closeDay'} className={styles.actionLinks}>
+                    <span><TbReportSearch/></span>
+                    <span>تقفيلة اليوم</span>
                 </Link>
                 {typeof window !== 'undefined' && localStorage.getItem('userName') === "mostafabeso10@gmail.com" && 
                   <Link href={'/profit'} className={styles.actionLinks}>
