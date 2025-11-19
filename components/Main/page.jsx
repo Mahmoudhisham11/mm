@@ -695,7 +695,6 @@ const handleSaveReport = async () => {
   }
 
   try {
-
     // 🧾 جلب رقم الفاتورة التسلسلي من Firestore
     const counterRef = doc(db, "counters", "invoiceCounter");
     const invoiceNumber = await runTransaction(db, async (transaction) => {
@@ -778,6 +777,36 @@ const handleSaveReport = async () => {
     await addDoc(collection(db, "dailySales"), saleData);
     await addDoc(collection(db, "employeesReports"), saleData);
 
+    // 🔄 تحديث المخزون بعد البيع
+    for (const item of cart) {
+      if (item.originalProductId) {
+        const prodRef = doc(db, "lacosteProducts", item.originalProductId);
+        const prodSnap = await getDoc(prodRef);
+        if (prodSnap.exists()) {
+          const currentQty = prodSnap.data().quantity || 0;
+          const newQty = currentQty - item.quantity;
+          if (newQty > 0) {
+            await updateDoc(prodRef, { quantity: newQty });
+          } else {
+            await deleteDoc(prodRef); // حذف المنتج إذا الكمية صفر أو أقل
+          }
+        }
+      } else {
+        // لو المنتج معرف بالكود فقط
+        const q = query(collection(db, "lacosteProducts"), where("code", "==", item.code), where("shop", "==", shop));
+        const snapshot = await getDocs(q);
+        for (const docSnap of snapshot.docs) {
+          const currentQty = docSnap.data().quantity || 0;
+          const newQty = currentQty - item.quantity;
+          if (newQty > 0) {
+            await updateDoc(docSnap.ref, { quantity: newQty });
+          } else {
+            await deleteDoc(docSnap.ref);
+          }
+        }
+      }
+    }
+
     // 🗂️ حفظ آخر فاتورة محليًا
     if (typeof window !== "undefined") {
       localStorage.setItem("lastInvoice", JSON.stringify({
@@ -819,6 +848,7 @@ const handleSaveReport = async () => {
   setShowClientPopup(false);
   router.push('/resete');
 };
+
 
 
   const handleCloseDay = async () => {
