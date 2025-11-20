@@ -694,56 +694,21 @@ const handleSaveReport = async () => {
       return newNumber;
     });
 
-    // تحقق من توفر المنتجات قبل الحفظ
-    for (const item of cart) {
-      if (item.originalProductId) {
-        const prodRef = doc(db, "lacosteProducts", item.originalProductId);
-        const prodSnap = await getDoc(prodRef);
-        if (prodSnap.exists()) {
-          const prodData = prodSnap.data();
-          if (item.color && prodData.colors && prodData.colors.length) {
-            const c = prodData.colors.find(x => x.color === item.color);
-            if (!c) {
-              console.warn(`تحذير: اللون ${item.color} غير موجود حالياً في المنتج ${item.name}`);
-            }
-          } else if (item.size && prodData.sizes && prodData.sizes.length) {
-            const s = prodData.sizes.find(x => x.size === item.size);
-            if (!s) {
-              console.warn(`تحذير: المقاس ${item.size} غير موجود حالياً في المنتج ${item.name}`);
-            }
-          }
-        } else {
-          console.warn("منتج غير موجود في lacosteProducts أثناء الحفظ (قد تكون كمياته 0 وتم حذفه سابقاً).");
-        }
-      } else {
-        const q = query(collection(db, "lacosteProducts"), where("code", "==", item.code), where("shop", "==", shop));
-        const snapshot = await getDocs(q);
-        if (snapshot.empty) {
-          console.warn("منتج غير موجود في lacosteProducts أثناء الحفظ (بحث بالكود).");
-        }
-      }
-    }
-
     // 🧮 الحسابات المالية
     const computedSubtotal = cart.reduce((sum, item) => sum + (item.sellPrice * item.quantity), 0);
     const computedFinalTotal = Math.max(0, computedSubtotal - appliedDiscount);
-
-    // نسبة الخصم من الإجمالي
     const discountRatio = computedSubtotal > 0 ? appliedDiscount / computedSubtotal : 0;
-
-    // ✅ حساب الربح الحقيقي بعد الخصم
     const computedProfit = cart.reduce((sum, item) => {
       const itemSellTotal = item.sellPrice * item.quantity;
-      const itemDiscount = itemSellTotal * discountRatio; // نصيب المنتج من الخصم
+      const itemDiscount = itemSellTotal * discountRatio;
       const itemNetSell = itemSellTotal - itemDiscount;
       const itemBuyTotal = (item.buyPrice || 0) * item.quantity;
-      const itemProfit = itemNetSell - itemBuyTotal;
-      return sum + itemProfit;
+      return sum + (itemNetSell - itemBuyTotal);
     }, 0);
 
-    // 🔥 البيانات بعد إضافة رقم الفاتورة
+    // 🔥 بيانات الفاتورة
     const saleData = {
-      invoiceNumber,   // ← رقم الفاتورة الجديد
+      invoiceNumber,
       cart,
       clientName,
       phone,
@@ -757,37 +722,75 @@ const handleSaveReport = async () => {
       employee: selectedEmployee || "غير محدد",
     };
 
-    // 🧾 حفظ البيانات في المجموعتين
+    // 🧾 حفظ البيانات
     await addDoc(collection(db, "dailySales"), saleData);
     await addDoc(collection(db, "employeesReports"), saleData);
 
     // 🔄 تحديث المخزون بعد البيع
     for (const item of cart) {
-      if (item.originalProductId) {
-        const prodRef = doc(db, "lacosteProducts", item.originalProductId);
-        const prodSnap = await getDoc(prodRef);
-        if (prodSnap.exists()) {
-          const currentQty = prodSnap.data().quantity || 0;
-          const newQty = currentQty - item.quantity;
-          if (newQty > 0) {
-            await updateDoc(prodRef, { quantity: newQty });
+      if (!item.originalProductId) continue;
+      const prodRef = doc(db, "lacosteProducts", item.originalProductId);
+      const prodSnap = await getDoc(prodRef);
+      if (!prodSnap.exists()) continue;
+
+      const prodData = prodSnap.data();
+
+      // المنتج بسيط
+      if (!prodData.colors && !prodData.sizes) {
+        const newQty = (prodData.quantity || 0) - item.quantity;
+        if (newQty > 0) await updateDoc(prodRef, { quantity: newQty });
+        else await deleteDoc(prodRef);
+        continue;
+      }
+
+      let updatedData = { ...prodData };
+
+      // المنتج له ألوان
+      if (item.color && Array.isArray(updatedData.colors)) {
+        updatedData.colors = updatedData.colors.map(c => {
+          if (c.color !== item.color) return c;
+          if (item.size && Array.isArray(c.sizes)) {
+            // خصم من المقاس
+            c.sizes = c.sizes.map(s => {
+              if (s.size === item.size) {
+                s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
+              }
+              return s;
+            }).filter(s => (s.qty || 0) > 0);
           } else {
-            await deleteDoc(prodRef); // حذف المنتج إذا الكمية صفر أو أقل
+            // خصم من الكمية على اللون مباشرة
+            c.quantity = Math.max(0, (c.quantity || 0) - item.quantity);
           }
-        }
+          return c;
+        }).filter(c => {
+          if (c.sizes) return c.sizes.length > 0;
+          if (c.quantity !== undefined) return c.quantity > 0;
+          return true;
+        });
+      }
+
+      // المنتج له مقاسات بدون ألوان
+      if (item.size && Array.isArray(updatedData.sizes)) {
+        updatedData.sizes = updatedData.sizes.map(s => {
+          if (s.size === item.size) {
+            s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
+          }
+          return s;
+        }).filter(s => (s.qty || 0) > 0);
+      }
+
+      // حساب إجمالي الكمية بعد التحديث
+      let totalQty = updatedData.quantity || 0;
+      if (Array.isArray(updatedData.sizes)) totalQty = updatedData.sizes.reduce((sum, s) => sum + (s.qty || 0), 0);
+      if (Array.isArray(updatedData.colors)) totalQty = updatedData.colors.reduce((sum, c) => {
+        if (c.sizes) return sum + c.sizes.reduce((sSum, s) => sSum + (s.qty || 0), 0);
+        return sum + (c.quantity || 0);
+      }, 0);
+
+      if (totalQty > 0) {
+        await updateDoc(prodRef, { ...updatedData, quantity: totalQty });
       } else {
-        // لو المنتج معرف بالكود فقط
-        const q = query(collection(db, "lacosteProducts"), where("code", "==", item.code), where("shop", "==", shop));
-        const snapshot = await getDocs(q);
-        for (const docSnap of snapshot.docs) {
-          const currentQty = docSnap.data().quantity || 0;
-          const newQty = currentQty - item.quantity;
-          if (newQty > 0) {
-            await updateDoc(docSnap.ref, { quantity: newQty });
-          } else {
-            await deleteDoc(docSnap.ref);
-          }
-        }
+        await deleteDoc(prodRef);
       }
     }
 
@@ -808,12 +811,10 @@ const handleSaveReport = async () => {
       }));
     }
 
-    // 🧹 مسح السلة بعد الحفظ
+    // 🧹 مسح السلة
     const qCart = query(collection(db, "cart"), where('shop', '==', shop));
     const cartSnapshot = await getDocs(qCart);
-    for (const docSnap of cartSnapshot.docs) {
-      await deleteDoc(docSnap.ref);
-    }
+    for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
 
     alert("تم حفظ التقرير بنجاح");
 
@@ -832,6 +833,7 @@ const handleSaveReport = async () => {
   setShowClientPopup(false);
   router.push('/resete');
 };
+
 
 
 
@@ -1590,63 +1592,60 @@ const handleReturnProduct = async (item, invoiceId) => {
 
 </div>
 
-
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
               <button onClick={() => { setShowVariantPopup(false); setVariantProduct(null); }}>إلغاء</button>
-<button onClick={async () => {
-  // التحقق من السعر قبل أي إضافة
-  if (!newPriceInput || newPriceInput < variantProduct.finalPrice) {
-  alert(`السعر الذي أدخلته أقل من السعر النهائي: ${variantProduct.finalPrice}`);
-  return;
-}
-  if (!newPriceInput || newPriceInput > variantProduct.sellPrice) {
-  alert(`السعر الذي أدخلته اكبر من السعر النهائي: ${variantProduct.sellPrice}`);
-  return;
-}
+              <button onClick={async () => {
+                // التحقق من السعر قبل أي إضافة
+                if (!newPriceInput || newPriceInput < variantProduct.finalPrice) {
+                alert(`السعر الذي أدخلته أقل من السعر النهائي: ${variantProduct.finalPrice}`);
+                return;
+              }
+                if (!newPriceInput || newPriceInput > variantProduct.sellPrice) {
+                alert(`السعر الذي أدخلته اكبر من السعر النهائي: ${variantProduct.sellPrice}`);
+                return;
+              }
 
 
-  // جمع المقاسات المختارة بالكمية > 0
-  const entries = Object.entries(variantSizeMap)
-    .map(([size, q]) => ({ size, qty: Number(q || 0) }))
-    .filter(e => e.qty > 0);
+                // جمع المقاسات المختارة بالكمية > 0
+                const entries = Object.entries(variantSizeMap)
+                  .map(([size, q]) => ({ size, qty: Number(q || 0) }))
+                  .filter(e => e.qty > 0);
 
-  if (!entries.length) {
-    alert("اختر كمية على الأقل لمقاس واحد قبل الإضافة");
-    return;
-  }
+                if (!entries.length) {
+                  alert("اختر كمية على الأقل لمقاس واحد قبل الإضافة");
+                  return;
+                }
 
-  // إضافة كل مقاس للسلة
-  for (const e of entries) {
-    const prodRef = doc(db, "lacosteProducts", variantProduct.id);
-    const prodSnap = await getDoc(prodRef);
-    const prodData = prodSnap.exists() ? prodSnap.data() : variantProduct;
-    const availableNow = getAvailableForVariant(prodData, variantSelectedColor, e.size);
+                // إضافة كل مقاس للسلة
+                for (const e of entries) {
+                  const prodRef = doc(db, "lacosteProducts", variantProduct.id);
+                  const prodSnap = await getDoc(prodRef);
+                  const prodData = prodSnap.exists() ? prodSnap.data() : variantProduct;
+                  const availableNow = getAvailableForVariant(prodData, variantSelectedColor, e.size);
 
-    if (e.qty > availableNow) {
-      alert(`الكمية المطلوبة للمقاس ${e.size} (${e.qty}) أكبر من المتاح حاليا (${availableNow}). لن تُضاف هذا المقاس.`);
-      continue;
-    }
+                  if (e.qty > availableNow) {
+                    alert(`الكمية المطلوبة للمقاس ${e.size} (${e.qty}) أكبر من المتاح حاليا (${availableNow}). لن تُضاف هذا المقاس.`);
+                    continue;
+                  }
 
-    await addToCartAndReserve(variantProduct, { 
-      color: variantSelectedColor, 
-      size: e.size, 
-      quantity: e.qty,
-      price: newPriceInput // السعر الذي أدخله المستخدم
-    });
-  }
+                  await addToCartAndReserve(variantProduct, { 
+                    color: variantSelectedColor, 
+                    size: e.size, 
+                    quantity: e.qty,
+                    price: newPriceInput // السعر الذي أدخله المستخدم
+                  });
+                }
 
-  // إغلاق الـ popup وتفريغ الحقول
-  setShowVariantPopup(false);
-  setVariantProduct(null);
-  setVariantSelectedColor("");
-  setVariantSizeMap({});
-  setProductToEdit(null);
-  setNewPriceInput(""); // تفريغ الحقل بعد الإضافة
-}}>
-  أضف للسلة
-</button>
-
-
+                // إغلاق الـ popup وتفريغ الحقول
+                setShowVariantPopup(false);
+                setVariantProduct(null);
+                setVariantSelectedColor("");
+                setVariantSizeMap({});
+                setProductToEdit(null);
+                setNewPriceInput(""); // تفريغ الحقل بعد الإضافة
+              }}>
+                أضف للسلة
+              </button>
             </div>
           </div>
         </div>
