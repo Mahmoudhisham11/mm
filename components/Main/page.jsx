@@ -198,9 +198,7 @@ const [showPricePopup, setShowPricePopup] = useState(false);
   // handleAddToCart: now opens variant popup if product has colors/sizes
   // -------------------------
   const openVariantForProduct = (product) => {
-    // product is lacosteProducts doc with id
     setVariantProduct(product);
-    // default color -> first available color
     const firstColor = (product.colors && product.colors.length) ? product.colors[0].color : "";
     setVariantSelectedColor(firstColor);
 
@@ -258,12 +256,6 @@ const addToCartAndReserve = async (product, options = {}) => {
   await addDoc(collection(db, "cart"), cartData);
 };
 
-
-
-
-
-
-
   // original handleAddToCart replaced by openVariant logic:
   const handleAddToCart = async (product) => {
     // if product has colors or sizes -> open variant popup
@@ -282,9 +274,6 @@ const addToCartAndReserve = async (product, options = {}) => {
   const handleQtyChange = async (cartItem, delta) => {
     const newQty = cartItem.quantity + delta;
     if (newQty < 1) return;
-
-    // Note: since we reserve on add, we must check availability in DB before increasing qty
-    // Find the lacosteProducts doc
     if (cartItem.originalProductId) {
       const prodRef = doc(db, "lacosteProducts", cartItem.originalProductId);
       const prodSnap = await getDoc(prodRef);
@@ -438,7 +427,6 @@ const addToCartAndReserve = async (product, options = {}) => {
   };
 
   const handleDeleteCartItem = async (cartDocId) => {
-    // when removing from cart before saving, we should restore reserved quantity back to lacosteProducts
     try {
       const cartRef = doc(db, "cart", cartDocId);
       const cartSnap = await getDoc(cartRef);
@@ -1724,18 +1712,6 @@ const handleReturnProduct = async (item, invoiceId) => {
             code: variantProduct.code || "",
             buyPrice: variantProduct.buyPrice || 0,
           });
-
-          // تحديث المخزون في Firestore لو محتاج
-          const prodRef = doc(db, "lacosteProducts", variantProduct.id);
-          const prodSnap = await getDoc(prodRef);
-          if (prodSnap.exists()) {
-            const prodData = prodSnap.data();
-            if (prodData.quantity !== undefined) {
-              const newQty = Math.max(0, Number(prodData.quantity) - 1);
-              if (newQty <= 0) await deleteDoc(prodRef);
-              else await updateDoc(prodRef, { quantity: newQty });
-            }
-          }
 
           // إغلاق popup
           setShowPricePopup(false);
