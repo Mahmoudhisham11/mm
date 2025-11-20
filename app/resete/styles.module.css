@@ -50,17 +50,14 @@
     box-sizing: border-box;
     direction: rtl;
     font-size: 12px;
-    margin-bottom: 20px;
     border: 1px solid #000;
 }
 
 .invoice h3 {
     text-align: center;
-    margin: 2px 0;
 }
 
 .invoice p {
-    margin: 2px 0;
     line-height: 1.2;
 }
 
@@ -68,12 +65,10 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
-    margin: 2px 0;
 }
 
 .invoice th, .invoice td {
     border: 1px solid black;
-    padding: 2px 4px;
     text-align: right;
 }
 
@@ -142,7 +137,6 @@
     }
 
     .invoice p {
-        margin: 1px 0; /* مسافات صغيرة بين العناصر */
         font-size: 12px;
     }
 
@@ -150,7 +144,6 @@
         width: 100%;
         border-collapse: collapse;
         font-size: 12px;
-        margin: 2px 0;
     }
 
     .invoice th, .invoice td {
@@ -169,6 +162,5 @@
     .footer {
         text-align: center;
         font-size: 12px;
-        margin-top: 2px;
     }
 }
