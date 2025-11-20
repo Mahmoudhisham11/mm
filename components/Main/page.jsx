@@ -735,11 +735,11 @@ const handleSaveReport = async () => {
 
       const prodData = prodSnap.data();
 
-      // المنتج بسيط
+      // المنتج بسيط (مالهوش ألوان ولا مقاسات)
       if (!prodData.colors && !prodData.sizes) {
-        const newQty = (prodData.quantity || 0) - item.quantity;
-        if (newQty > 0) await updateDoc(prodRef, { quantity: newQty });
-        else await deleteDoc(prodRef);
+        const currentQty = prodData.quantity || 0;
+        const newQty = currentQty - item.quantity;
+        await updateDoc(prodRef, { quantity: Math.max(0, newQty) }); // خصم الكمية فقط
         continue;
       }
 
@@ -749,8 +749,9 @@ const handleSaveReport = async () => {
       if (item.color && Array.isArray(updatedData.colors)) {
         updatedData.colors = updatedData.colors.map(c => {
           if (c.color !== item.color) return c;
+
           if (item.size && Array.isArray(c.sizes)) {
-            // خصم من المقاس
+            // خصم من المقاس داخل اللون
             c.sizes = c.sizes.map(s => {
               if (s.size === item.size) {
                 s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
@@ -758,7 +759,7 @@ const handleSaveReport = async () => {
               return s;
             }).filter(s => (s.qty || 0) > 0);
           } else {
-            // خصم من الكمية على اللون مباشرة
+            // خصم الكمية على اللون مباشرة
             c.quantity = Math.max(0, (c.quantity || 0) - item.quantity);
           }
           return c;
@@ -787,11 +788,7 @@ const handleSaveReport = async () => {
         return sum + (c.quantity || 0);
       }, 0);
 
-      if (totalQty > 0) {
-        await updateDoc(prodRef, { ...updatedData, quantity: totalQty });
-      } else {
-        await deleteDoc(prodRef);
-      }
+      await updateDoc(prodRef, { ...updatedData, quantity: totalQty });
     }
 
     // 🗂️ حفظ آخر فاتورة محليًا
@@ -833,6 +830,7 @@ const handleSaveReport = async () => {
   setShowClientPopup(false);
   router.push('/resete');
 };
+
 
 
 
