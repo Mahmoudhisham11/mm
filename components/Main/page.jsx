@@ -679,7 +679,7 @@ const handleSaveReport = async () => {
   }
 
   try {
-    // 🧾 جلب رقم الفاتورة التسلسلي من Firestore
+    // 🧾 جلب رقم الفاتورة التسلسلي
     const counterRef = doc(db, "counters", "invoiceCounter");
     const invoiceNumber = await runTransaction(db, async (transaction) => {
       const counterSnap = await transaction.get(counterRef);
@@ -694,7 +694,7 @@ const handleSaveReport = async () => {
       return newNumber;
     });
 
-    // 🧮 الحسابات المالية
+    // 🧮 الحسابات
     const computedSubtotal = cart.reduce((sum, item) => sum + (item.sellPrice * item.quantity), 0);
     const computedFinalTotal = Math.max(0, computedSubtotal - appliedDiscount);
     const discountRatio = computedSubtotal > 0 ? appliedDiscount / computedSubtotal : 0;
@@ -729,66 +729,93 @@ const handleSaveReport = async () => {
     // 🔄 تحديث المخزون بعد البيع
     for (const item of cart) {
       if (!item.originalProductId) continue;
+
       const prodRef = doc(db, "lacosteProducts", item.originalProductId);
       const prodSnap = await getDoc(prodRef);
       if (!prodSnap.exists()) continue;
 
       const prodData = prodSnap.data();
 
-      // المنتج بسيط (مالهوش ألوان ولا مقاسات)
-      if (!prodData.colors && !prodData.sizes) {
+      // 🟢 تحديد إن المنتج بسيط فعلاً:
+      const isSimpleProduct =
+        (!Array.isArray(prodData.colors) || prodData.colors.length === 0) &&
+        (!Array.isArray(prodData.sizes) || prodData.sizes.length === 0);
+
+      if (isSimpleProduct) {
         const currentQty = prodData.quantity || 0;
         const newQty = currentQty - item.quantity;
-        await updateDoc(prodRef, { quantity: Math.max(0, newQty) }); // خصم الكمية فقط
+
+        await updateDoc(prodRef, {
+          quantity: Math.max(0, newQty)
+        });
+
         continue;
       }
 
+      // 🟠 المنتج له ألوان/مقاسات
       let updatedData = { ...prodData };
 
-      // المنتج له ألوان
+      // له ألوان
       if (item.color && Array.isArray(updatedData.colors)) {
-        updatedData.colors = updatedData.colors.map(c => {
-          if (c.color !== item.color) return c;
+        updatedData.colors = updatedData.colors
+          .map(c => {
+            if (c.color !== item.color) return c;
 
-          if (item.size && Array.isArray(c.sizes)) {
-            // خصم من المقاس داخل اللون
-            c.sizes = c.sizes.map(s => {
-              if (s.size === item.size) {
-                s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
-              }
-              return s;
-            }).filter(s => (s.qty || 0) > 0);
-          } else {
-            // خصم الكمية على اللون مباشرة
-            c.quantity = Math.max(0, (c.quantity || 0) - item.quantity);
-          }
-          return c;
-        }).filter(c => {
-          if (c.sizes) return c.sizes.length > 0;
-          if (c.quantity !== undefined) return c.quantity > 0;
-          return true;
-        });
+            if (item.size && Array.isArray(c.sizes)) {
+              c.sizes = c.sizes
+                .map(s => {
+                  if (s.size === item.size) {
+                    s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
+                  }
+                  return s;
+                })
+                .filter(s => (s.qty || 0) > 0);
+            } else {
+              c.quantity = Math.max(0, (c.quantity || 0) - item.quantity);
+            }
+
+            return c;
+          })
+          .filter(c => {
+            if (c.sizes) return c.sizes.length > 0;
+            if (c.quantity !== undefined) return c.quantity > 0;
+            return true;
+          });
       }
 
-      // المنتج له مقاسات بدون ألوان
+      // له مقاسات فقط
       if (item.size && Array.isArray(updatedData.sizes)) {
-        updatedData.sizes = updatedData.sizes.map(s => {
-          if (s.size === item.size) {
-            s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
-          }
-          return s;
-        }).filter(s => (s.qty || 0) > 0);
+        updatedData.sizes = updatedData.sizes
+          .map(s => {
+            if (s.size === item.size) {
+              s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
+            }
+            return s;
+          })
+          .filter(s => (s.qty || 0) > 0);
       }
 
-      // حساب إجمالي الكمية بعد التحديث
+      // حساب إجمالي الكمية النهائي
       let totalQty = updatedData.quantity || 0;
-      if (Array.isArray(updatedData.sizes)) totalQty = updatedData.sizes.reduce((sum, s) => sum + (s.qty || 0), 0);
-      if (Array.isArray(updatedData.colors)) totalQty = updatedData.colors.reduce((sum, c) => {
-        if (c.sizes) return sum + c.sizes.reduce((sSum, s) => sSum + (s.qty || 0), 0);
-        return sum + (c.quantity || 0);
-      }, 0);
 
-      await updateDoc(prodRef, { ...updatedData, quantity: totalQty });
+      if (Array.isArray(updatedData.sizes)) {
+        totalQty = updatedData.sizes.reduce((sum, s) => sum + (s.qty || 0), 0);
+      }
+
+      if (Array.isArray(updatedData.colors)) {
+        totalQty = updatedData.colors.reduce((sum, c) => {
+          if (c.sizes) {
+            return sum + c.sizes.reduce((sSum, s) => sSum + (s.qty || 0), 0);
+          }
+          return sum + (c.quantity || 0);
+        }, 0);
+      }
+
+      if (totalQty > 0) {
+        await updateDoc(prodRef, { ...updatedData, quantity: totalQty });
+      } else {
+        await deleteDoc(prodRef);
+      }
     }
 
     // 🗂️ حفظ آخر فاتورة محليًا
@@ -808,20 +835,18 @@ const handleSaveReport = async () => {
       }));
     }
 
-    // 🧹 مسح السلة
+    // 🧹 تفريغ السلة
     const qCart = query(collection(db, "cart"), where('shop', '==', shop));
     const cartSnapshot = await getDocs(qCart);
     for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
 
     alert("تم حفظ التقرير بنجاح");
 
-    // 🔄 إعادة ضبط الخصم
     setAppliedDiscount(0);
     setDiscountInput(0);
     setDiscountNotes("");
-
   } catch (error) {
-    console.error("حدث خطأ أثناء حفظ التقرير:", error);
+    console.error("خطأ أثناء حفظ التقرير:", error);
     alert("حدث خطأ أثناء حفظ التقرير");
   }
 
@@ -830,6 +855,7 @@ const handleSaveReport = async () => {
   setShowClientPopup(false);
   router.push('/resete');
 };
+
 
 
 
