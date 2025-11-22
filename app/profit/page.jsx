@@ -219,7 +219,7 @@ export default function Profit() {
 
   setCashTotal(remainingCash < 0 ? 0 : remainingCash);
 
-  // حساب الأرباح
+// حساب أرباح التقارير
 let remainingProfit = 0;
 filteredReports.forEach(r => {
   if (!r.cart || !Array.isArray(r.cart)) return;
@@ -231,7 +231,14 @@ filteredReports.forEach(r => {
   }, 0);
   remainingProfit += reportProfit;
 });
-remainingProfit -= totalCash
+
+// طرح المصروفات من الأرباح (صح)
+const totalMasrofatT = filteredDaily.reduce(
+  (sum, d) => sum + (Number(d.totalMasrofat) || 0),
+  0
+);
+remainingProfit -= totalMasrofatT; // ✅ ده الصح
+
 
 let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
 filteredWithdraws.forEach(w => {
