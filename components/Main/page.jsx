@@ -1035,6 +1035,17 @@ const finallyTotal = Number(totalSales) - Number(totalMasrofat);
 
   // return product (refund) -> restore color/size quantities to lacosteProducts
 const handleReturnProduct = async (item, invoiceId) => {
+  // 🔹 منع الضغط مرتين على نفس المنتج
+  if (item.isReturning) return;
+  item.isReturning = true;
+
+  // 🔹 إضافة التأكيد قبل أي عملية
+  const confirmed = window.confirm(`هل أنت متأكد أنك تريد إرجاع المنتج "${item.name}"؟`);
+  if (!confirmed) {
+    item.isReturning = false;
+    return; // لو ضغط إلغاء، نخرج من الدالة
+  }
+
   try {
     // البحث عن المنتج وتحديثه أو إنشاؤه
     let prodRef = null;
@@ -1209,8 +1220,12 @@ const handleReturnProduct = async (item, invoiceId) => {
   } catch (error) {
     console.error("خطأ أثناء الإرجاع:", error);
     alert("❌ حدث خطأ أثناء إرجاع المنتج");
+  } finally {
+    // 🔹 السماح بالضغط مرة أخرى بعد انتهاء العملية
+    item.isReturning = false;
   }
 };
+
 
 
   return (
