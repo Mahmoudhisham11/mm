@@ -1577,7 +1577,6 @@ const handleReturnProduct = async (item, invoiceId) => {
               </div>
             </div>
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <h4>السعر النهائي الافتراضي: {variantProduct?.finalPrice}</h4>
               <label>السعر:</label>
               <input
                 type="number"
@@ -1606,7 +1605,7 @@ const handleReturnProduct = async (item, invoiceId) => {
                 // ----------- السعر أقل من السعر النهائي -----------  
                 if (price < finalPrice) {
 
-                  const pass = prompt("السعر أقل من السعر النهائي، اكتب الباسورد للسماح:");
+                  const pass = prompt(`السعر النهائي ${finalPrice}`);
 
                   // لو الباسورد غلط
                   if (pass !== "229400" && pass !== "2298605522") {
@@ -1703,7 +1702,6 @@ const handleReturnProduct = async (item, invoiceId) => {
         <div className={styles.popupOverlay}>
         <div className={styles.popupBox}>
             <h3>أدخل السعر للمنتج</h3>
-            <h4>السعر النهائي الافتراضي: {variantProduct?.finalPrice}</h4>
             <input 
               type="number" 
               value={newPriceInput} 
@@ -1716,7 +1714,7 @@ const handleReturnProduct = async (item, invoiceId) => {
           // ⭐⭐ شرط الباسورد لو السعر أقل من finalPrice ⭐⭐
           if (!newPriceInput || newPriceInput < variantProduct.finalPrice) {
 
-            const pass = prompt("السعر أقل من السعر النهائي، اكتب الباسورد للسماح:");
+            const pass = prompt(`السعر النهائي ${variantProduct.finalPrice}`);
 
             if (pass === "2298605522") {
               // ✔ مسموح ولكن بحد أقصى 50 جنيه فقط
