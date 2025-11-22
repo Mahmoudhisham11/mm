@@ -39,6 +39,7 @@ function Main() {
   const [newPriceInput, setNewPriceInput] = useState(0);
   const [tempPrices, setTempPrices] = useState({});
   const [showPricePopup, setShowPricePopup] = useState(false);
+  const [returning, setReturning] = useState(null);
   // NEW: discount popup & values
   const [showDiscountPopup, setShowDiscountPopup] = useState(false);
   const [discountInput, setDiscountInput] = useState(0);
@@ -1396,12 +1397,18 @@ const handleReturnUI = async (item) => {
                       <td>{item.quantity}</td>
                       <td>{item.serial || "-"}</td>
                       <td>
-                        {userName === 'mostafabeso10@gmail.com' || 'medo' && <button
-                          className={styles.returnBtn}
-                          onClick={() => handleReturnUI(item)}
-                        >
-                          مرتجع
-                        </button>}
+                        {(userName === 'mostafabeso10@gmail.com' || userName === 'medo') && (
+                          <button
+                            className={styles.returnBtn}
+                            disabled={returning === idx} 
+                            onClick={() => {
+                              setReturning(idx);         
+                              handleReturnUI(item);      
+                            }}
+                          >
+                            {returning === idx ? "جارٍ التنفيذ..." : "مرتجع"} 
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
