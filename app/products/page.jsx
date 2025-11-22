@@ -581,7 +581,6 @@ const computeTempColorsQty = () => {
         <body>
           <div class="label">
           <div class="container">
-          <div class="price">${product.sellPrice ?? ''} EGP</div>
           <div class="name">${product.name ?? ''}</div>
           </div>
             
