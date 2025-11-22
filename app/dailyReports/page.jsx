@@ -98,35 +98,35 @@ export default function DailyReports() {
           </div>
         </div>
         
-<button
-  onClick={() => {
-    if (typeof window !== "undefined") {
-      const table = document.getElementById("productsTable");
-      if (!table) return;
+        <button
+          onClick={() => {
+            if (typeof window !== "undefined") {
+              const table = document.getElementById("productsTable");
+              if (!table) return;
 
-      const printWindow = window.open("", "", "width=900,height=650");
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>طباعة المنتجات</title>
-            <style>
-              table { width: 100%; border-collapse: collapse; }
-              th, td { border: 1px solid #000; padding: 8px; text-align: left; }
-            </style>
-          </head>
-          <body>${table.outerHTML}</body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-      // شيل printWindow.close() عشان النافذة متتقفلش على طول
-    }
-  }}
-  style={{ padding: "8px 12px", marginBottom: "12px", background: "#ffd400", border: "none", borderRadius: 6 }}
->
-  طباعة المنتجات
-</button>
+              const printWindow = window.open("", "", "width=900,height=650");
+              printWindow.document.write(`
+                <html>
+                  <head>
+                    <title>طباعة المنتجات</title>
+                    <style>
+                      table { width: 100%; border-collapse: collapse; }
+                      th, td { border: 1px solid #000; padding: 8px; text-align: left; }
+                    </style>
+                  </head>
+                  <body>${table.outerHTML}</body>
+                </html>
+              `);
+              printWindow.document.close();
+              printWindow.focus();
+              printWindow.print();
+              // شيل printWindow.close() عشان النافذة متتقفلش على طول
+            }
+          }}
+          style={{ padding: "8px 12px", marginBottom: "12px", background: "#ffd400", border: "none", borderRadius: 6 }}
+        >
+          طباعة المنتجات
+        </button>
 
 
         {/* ✔ عرض إجمالي الكمية */}

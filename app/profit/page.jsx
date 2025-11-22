@@ -231,6 +231,7 @@ filteredReports.forEach(r => {
   }, 0);
   remainingProfit += reportProfit;
 });
+remainingProfit -= totalCash
 
 let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
 filteredWithdraws.forEach(w => {
