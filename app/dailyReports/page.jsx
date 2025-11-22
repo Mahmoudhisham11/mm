@@ -84,6 +84,37 @@ export default function DailyReports() {
       <SideBar />
 
       <div className={styles.content}>
+        // أضف داخل الـ return قبل div الجدول
+<button
+  onClick={() => {
+    const table = document.querySelector("table"); // يأخذ الجدول الأول
+    if (!table) return;
+
+    const newWin = window.open("", "", "width=900,height=700");
+    newWin.document.write(`
+      <html>
+        <head>
+          <title>طباعة المنتجات</title>
+          <style>
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #000; padding: 6px; text-align: left; }
+          </style>
+        </head>
+        <body>
+          ${table.outerHTML}
+        </body>
+      </html>
+    `);
+    newWin.document.close();
+    newWin.focus();
+    newWin.print();
+    newWin.close();
+  }}
+  style={{ padding: "8px 12px", marginBottom: 12, cursor: "pointer", background: "#ffd400", border: "none", borderRadius: 6 }}
+>
+  طباعة المنتجات
+</button>
+
 
         {/* -- شريط البحث -- */}
         <div className={styles.searchBox}>
