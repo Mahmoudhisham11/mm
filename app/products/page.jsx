@@ -40,7 +40,7 @@ function Products() {
   const [showDeletePopup, setShowDeletePopup] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteForm, setDeleteForm] = useState([]);  
-
+  const [searchDate, setSearchDate] = useState("");
   const [form, setForm] = useState({
     name: "",
     buyPrice: "",
@@ -66,6 +66,7 @@ function Products() {
   };
 
   const router = useRouter();
+
   useEffect(() => {
     const checkLock = async () => {
       const userName = localStorage.getItem("userName");
@@ -93,92 +94,117 @@ function Products() {
     checkLock();
   }, []);
 
-  useEffect(() => {
-    const shop = localStorage.getItem("shop");
-    if (!shop) return;
+useEffect(() => {
+  const shop = localStorage.getItem("shop");
+  if (!shop) return;
 
-    const q = query(
-      collection(db, "lacosteProducts"),
-      where("shop", "==", shop),
-      where("type", "==", "product")
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setProducts(data);
-      let totalQty = 0;
-
-data.forEach((product) => {
-  let productQty = 0;
-
-  if (product.colors && product.colors.length) {
-    product.colors.forEach((c) => {
-      if (c.sizes && c.sizes.length) {
-        c.sizes.forEach((sz) => {
-          productQty += Number(sz.qty || 0);
-        });
-      } else if (c.quantity) {
-        productQty += Number(c.quantity || 0);
-      }
-    });
-  } else {
-    productQty = Number(product.quantity || 0);
-  }
-
-  totalQty += productQty;
-});
-
-setTotalProducts(totalQty);
-
-
-      let totalBuyAmount = 0;
-      let totalSellAmount = 0;
-      let finalTotalAmount = 0
-      data.forEach((product) => {
-        let productQty = 0;
-        if (product.colors && product.colors.length) {
-          product.colors.forEach((c) => {
-            if (c.sizes && c.sizes.length) {
-              c.sizes.forEach((sz) => {
-                productQty += Number(sz.qty || 0);
-              });
-            } else if (c.quantity) {
-              productQty += Number(c.quantity || 0);
-            }
-          });
-        } else {
-          productQty = Number(product.quantity || 0);
-        }
-        totalBuyAmount += (product.buyPrice || 0) * productQty;
-        finalTotalAmount += (product.buyPrice || 0) * productQty;
-        totalSellAmount += (product.sellPrice || 0) * productQty;
-      });
-      setTotalBuy(totalBuyAmount);
-      setTotalSell(totalSellAmount);
-      setFinalTotal(finalTotalAmount)
-
-      let filtered;
-
-if (searchCode.trim()) {
-  filtered = data.filter((p) =>
-    p.code?.toString().toLowerCase().includes(searchCode.trim().toLowerCase())
+  const q = query(
+    collection(db, "lacosteProducts"),
+    where("shop", "==", shop),
+    where("type", "==", "product")
   );
-} else {
-  filtered = data;
-}
 
-setFilteredProducts(filtered);
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    const data = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
 
-// تحديث إجمالي الكمية حسب نتائج البحث
-setTotalProducts(computeTotalProducts(filtered));
+    setProducts(data);
 
+    // ------------------------------------------------------------
+    // 1) نبدأ بالفلترة
+    // ------------------------------------------------------------
+
+    let filtered = data;
+
+    // 🔍 فلترة بالكود
+    if (searchCode.trim()) {
+      filtered = filtered.filter((p) =>
+        p.code?.toString().toLowerCase().includes(searchCode.trim().toLowerCase())
+      );
+    }
+
+    // 📅 فلترة بالتاريخ
+    if (searchDate) {
+      const selected = new Date(searchDate).toLocaleDateString("ar-EG");
+
+      filtered = filtered.filter((p) => {
+        if (!p.date?.toDate) return false;
+        const productDate = p.date.toDate().toLocaleDateString("ar-EG");
+        return productDate === selected;
+      });
+    }
+
+    // حفظ المنتجات بعد الفلترة
+    setFilteredProducts(filtered);
+
+    // ------------------------------------------------------------
+    // 2) حساب إجمالي الكميات
+    // ------------------------------------------------------------
+
+    let totalQty = 0;
+
+    filtered.forEach((product) => {
+      let productQty = 0;
+
+      if (product.colors && product.colors.length) {
+        product.colors.forEach((c) => {
+          if (c.sizes && c.sizes.length) {
+            c.sizes.forEach((sz) => {
+              productQty += Number(sz.qty || 0);
+            });
+          } else if (c.quantity) {
+            productQty += Number(c.quantity || 0);
+          }
+        });
+      } else {
+        productQty = Number(product.quantity || 0);
+      }
+
+      totalQty += productQty;
     });
 
-    return () => unsubscribe();
-  }, [searchCode]);
+    setTotalProducts(totalQty);
+
+    // ------------------------------------------------------------
+    // 3) حساب الإجماليات
+    // ------------------------------------------------------------
+
+    let totalBuyAmount = 0;
+    let totalSellAmount = 0;
+    let finalTotalAmount = 0;
+
+    filtered.forEach((product) => {
+      let productQty = 0;
+
+      if (product.colors && product.colors.length) {
+        product.colors.forEach((c) => {
+          if (c.sizes && c.sizes.length) {
+            c.sizes.forEach((sz) => {
+              productQty += Number(sz.qty || 0);
+            });
+          } else if (c.quantity) {
+            productQty += Number(c.quantity || 0);
+          }
+        });
+      } else {
+        productQty = Number(product.quantity || 0);
+      }
+
+      totalBuyAmount += (product.buyPrice || 0) * productQty;
+      totalSellAmount += (product.sellPrice || 0) * productQty;
+      finalTotalAmount += (product.finalPrice || 0) * productQty;
+    });
+
+    setTotalBuy(totalBuyAmount);
+    setTotalSell(totalSellAmount);
+    setFinalTotal(finalTotalAmount);
+  });
+
+  return () => unsubscribe();
+}, [searchCode, searchDate]);
+
 
   const getNextCode = async () => {
     const shop = localStorage.getItem("shop");
@@ -748,6 +774,13 @@ const confirmDeleteSelected = async () => {
                         <option key={p.id} value={p.code} />
                       ))}
                     </datalist>
+                  </div>
+                  <div className="inputContainer" style={{marginTop: '15px'}}>
+                    <input 
+                      type="date"
+                      value={searchDate}
+                      onChange={(e) => setSearchDate(e.target.value)}
+                    />
                   </div>
                 </div>
 

@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 
 function Masrofat() {
   const router = useRouter();
+  const [editingMasrof, setEditingMasrof] = useState(null); // لتخزين المصروف الجاري تعديله
   const [auth, setAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState(false);
@@ -87,64 +88,60 @@ function Masrofat() {
   }, [shop, masrofatList]);
 
   // إضافة مصروف جديد
-  const handleAddMasrof = async () => {
-    if (!masrof || !reason) {
-      alert("يرجى ملء كل الحقول");
-      return;
-    }
+const handleAddMasrof = async () => {
+  if (!masrof || !reason) {
+    alert("يرجى ملء كل الحقول");
+    return;
+  }
 
-    const masrofValue = Number(masrof);
+  const masrofValue = Number(masrof);
 
-    // حساب إجمالي المصاريف الحالية
-    const totalMasrofToday = masrofatList.reduce((acc, item) => acc + Number(item.masrof || 0), 0);
-    const availableAmount = dailySales - totalMasrofToday;
+  const totalMasrofToday = masrofatList.reduce((acc, item) => acc + Number(item.masrof || 0), 0);
+  const availableAmount = dailySales - (editingMasrof ? totalMasrofToday - Number(editingMasrof.masrof) : totalMasrofToday);
 
-    // تحقق من الرصيد المتاح
-    if (masrofValue > availableAmount) {
-      alert(`❌ الرصيد الحالي غير كافٍ لإضافة هذا المصروف.
-      
+  if (masrofValue > availableAmount) {
+    alert(`❌ الرصيد الحالي غير كافٍ لإضافة هذا المصروف.
+    
 الرصيد المتاح: ${availableAmount}
 المبلغ المطلوب: ${masrofValue}`);
-      return;
-    }
+    return;
+  }
 
-    try {
-      const now = new Date();
-      const formattedDate = `${now.getDate().toString().padStart(2, "0")}/${(now.getMonth() + 1)
-        .toString()
-        .padStart(2, "0")}/${now.getFullYear()}`;
+  const now = new Date();
+  const formattedDate = `${now.getDate().toString().padStart(2, "0")}/${(now.getMonth() + 1)
+    .toString()
+    .padStart(2, "0")}/${now.getFullYear()}`;
 
-      // إضافة المصروف في Collection masrofat
+  try {
+    if (editingMasrof) {
+      // تعديل المصروف الموجود
       await addDoc(collection(db, "masrofat"), {
         masrof: masrofValue,
         reason,
         date: formattedDate,
         shop,
       });
-
-      // تحقق إذا السبب هو ربح مصطفى أو ربح ميدو
-      let person = null;
-      if (reason.includes("ربح مصطفى")) person = "مصطفى";
-      else if (reason.includes("ربح ميدو")) person = "ميدو";
-
-      if (person) {
-        // إضافة السحب في Collection withdraws
-        await addDoc(collection(db, "withdraws"), {
-          shop,
-          person,
-          amount: masrofValue,
-          date: formattedDate,
-        });
-      }
-
-      // تفريغ الحقول بعد الإضافة
-      setMasrof("");
-      setReason("");
-      setActive(false);
-    } catch (error) {
-      console.error("خطأ أثناء الإضافة:", error);
+      // تحديث المستند الحالي
+      await deleteDoc(doc(db, "masrofat", editingMasrof.id));
+      setEditingMasrof(null);
+    } else {
+      // إضافة مصروف جديد
+      await addDoc(collection(db, "masrofat"), {
+        masrof: masrofValue,
+        reason,
+        date: formattedDate,
+        shop,
+      });
     }
-  };
+
+    setMasrof("");
+    setReason("");
+    setActive(false);
+  } catch (error) {
+    console.error("خطأ أثناء الإضافة/التعديل:", error);
+  }
+};
+
 
   // حذف مصروف واحد
   const handleDelete = async (id) => {
@@ -193,7 +190,13 @@ function Masrofat() {
                     <td>{item.masrof}</td>
                     <td>{item.reason}</td>
                     <td>{item.date}</td>
-                    <td>
+                    <td className={styles.actions}>
+                      <button className={styles.editBtn} onClick={() => {
+                        setEditingMasrof(item);
+                        setMasrof(item.masrof);
+                        setReason(item.reason);
+                        setActive(true);
+                      }}>✏️</button>
                       <button className={styles.delBtn} onClick={() => handleDelete(item.id)}>
                         <FaTrashAlt />
                       </button>
@@ -215,7 +218,10 @@ function Masrofat() {
             <label><FaQuestion /></label>
             <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} />
           </div>
-          <button className={styles.addBtn} onClick={handleAddMasrof}>اضف المصروف</button>
+          <button className={styles.addBtn} onClick={handleAddMasrof}>
+            {editingMasrof ? "تعديل المصروف" : "اضف المصروف"}
+          </button>
+
         </div>
       </div>
     </div>

@@ -14,9 +14,17 @@ import { TbReportMoney } from "react-icons/tb";
 import { IoPersonOutline } from "react-icons/io5";
 import { CiWallet } from "react-icons/ci";
 import { IoIosCloseCircle } from "react-icons/io";
-import { GoGraph } from "react-icons/go";
+import { useEffect, useState } from "react";
 
 function SideBar({openSideBar, setOpenSideBar}) {
+    const [currentUser, setCurrentUser] = useState(null);
+
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            setCurrentUser(localStorage.getItem("userName"));
+        }
+    }, []);
+
     const handleLogout = () => {
         if(typeof window !== 'undefined') {
             localStorage.clear()
@@ -64,7 +72,7 @@ function SideBar({openSideBar, setOpenSideBar}) {
                     <span><TbReportSearch/></span>
                     <span>تقفيلة اليوم</span>
                 </Link>
-                {typeof window !== 'undefined' && localStorage.getItem('userName') === "mostafabeso10@gmail.com" && 
+                {currentUser === "mostafabeso10@gmail.com" && 
                   <Link href={'/profit'} className={styles.actionLinks}>
                     <span><TbReportSearch/></span>
                     <span>الارباح</span>
@@ -72,7 +80,7 @@ function SideBar({openSideBar, setOpenSideBar}) {
                 }
             </div>
             <div className={styles.logout}>
-                {typeof window !== 'undefined' && localStorage.getItem('userName') === "mostafabeso10@gmail.com" && 
+                {currentUser === "mostafabeso10@gmail.com" && 
                   <Link href={'/settings'} className={styles.actionLinks}>
                     <span><TbReportSearch/></span>
                     <span>الاعدادات</span>

@@ -1008,6 +1008,7 @@ const handleSaveNewPrice = () => {
 const totalMasrofat = masrofat.reduce((sum, i) => sum + Number(i.masrof || 0), 0);
 
 const totalSales = filteredInvoices.reduce((sum, i) => sum + (i.total || 0), 0);
+const finalProfit = filteredInvoices.reduce((sum, i) => sum + (i.profit || 0), 0);
 const finallyTotal = Number(totalSales) - Number(totalMasrofat);
 
 
@@ -1303,6 +1304,18 @@ const handleReturnUI = async (item) => {
               <h4>صافي المبيع </h4>
               <p>{isHidden? '****' : filteredInvoices.length > 0 ? finallyTotal : 0} جنيه</p>
             </div>
+            {userName === 'mostafabeso10@gmail.com' && 
+              <>
+                <div className={styles.card}>
+                  <h4>الربح</h4>
+                  <p>{isHidden? '****' : finalProfit} جنيه</p>
+                </div>
+                <div className={styles.card}>
+                  <h4>صافي الربح</h4>
+                  <p>{isHidden? '****' : `${Number(finalProfit) - Number(totalMasrofat) }`} جنيه</p>
+                </div>
+              </>
+            }
             <div className={styles.card}>
               <h4>أنشط موظف</h4>
               <p>{isHidden? '****' : topEmployee}</p>
@@ -1382,20 +1395,22 @@ const handleReturnUI = async (item) => {
               <table>
                 <thead>
                   <tr>
+                    <th>الكود</th>
                     <th>المنتج</th>
                     <th>السعر</th>
+                    <th>سعر الجملة</th>
                     <th>الكمية</th>
-                    <th>السريال</th>
                     <th>إجراء</th>
                   </tr>
                 </thead>
                 <tbody>
                   {selectedInvoice.cart.map((item, idx) => (
                     <tr key={idx}>
+                      <td>{item.code}</td>
                       <td>{item.name} {item.color ? ` - ${item.color}` : ""} {item.size ? ` - ${item.size}` : ""}</td>
                       <td>{item.sellPrice}</td>
+                      <td>{item.buyPrice}</td>
                       <td>{item.quantity}</td>
-                      <td>{item.serial || "-"}</td>
                       <td>
                         {(userName === 'mostafabeso10@gmail.com' || userName === 'medo') && (
                           <button
@@ -1749,7 +1764,6 @@ const handleReturnUI = async (item) => {
       {showPricePopup && (
         <div className={styles.popupOverlay}>
         <div className={styles.popupBox}>
-            <h3>أدخل السعر للمنتج</h3>
             <input 
               type="number" 
               value={newPriceInput} 

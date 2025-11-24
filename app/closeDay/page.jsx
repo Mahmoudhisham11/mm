@@ -19,12 +19,20 @@ export default function CloseDay() {
 
   // current user
   const [currentUser, setCurrentUser] = useState("");
+  useEffect(() => {
+    const user = localStorage.getItem("userName") || "";
+    setCurrentUser(user);
+  }, []);
 
-useEffect(() => {
-  const user = localStorage.getItem("userName") || "";
-  setCurrentUser(user);
-}, []);
+  // sidebar state
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
 
+  const handleInvoiceClick = (invoice) => {
+    setSelectedInvoice(invoice);
+  };
+  const closeInvoiceSidebar = () => {
+    setSelectedInvoice(null);
+  };
 
   // helper: yyyy-mm-dd -> DD/MM/YYYY
   const toDDMMYYYY = (isoDate) => {
@@ -32,17 +40,11 @@ useEffect(() => {
     const [y, m, d] = isoDate.split("-");
     return `${d}/${m}/${y}`;
   };
+  const closeDrawer = () => {
+      setSelectedInvoice(null);
+    };
 
-  // helper: format time from Firestore Timestamp or fallback
-  const timeFrom = (tsOrStr) => {
-    if (!tsOrStr) return "-";
-    if (tsOrStr?.toDate && typeof tsOrStr.toDate === "function") {
-      return tsOrStr.toDate().toLocaleTimeString();
-    }
-    return typeof tsOrStr === "string" ? tsOrStr : "-";
-  };
-
-  // load closes for a given date (DD/MM/YYYY)
+  // load closes for a given date
   useEffect(() => {
     const ddmmyyyy = toDDMMYYYY(dateISO);
     if (!ddmmyyyy) return;
@@ -101,7 +103,11 @@ useEffect(() => {
       const date = sale.date?.toDate ? sale.date.toDate().toLocaleString() : (sale.date ? String(sale.date) : "-");
 
       return (
-        <tr key={sale.id || invoice}>
+        <tr 
+          key={sale.id || invoice} 
+          onClick={() => handleInvoiceClick(sale)} 
+          style={{ cursor: "pointer", backgroundColor: selectedInvoice?.id === sale.id ? "#fef3c7" : "transparent" }}
+        >
           <td>{invoice}</td>
           <td>{employee}</td>
           <td>{date}</td>
@@ -146,15 +152,14 @@ useEffect(() => {
           <label>بحث بالتاريخ:</label>
           {currentUser === 'mostafabeso10@gmail.com' ? 
             <input
-            type="date"
-            value={dateISO}
-            onChange={(e) => setDateISO(e.target.value)}
-            style={{ padding: "6px 8px" }}
-          /> : ""  
-        }
-          
+              type="date"
+              value={dateISO}
+              onChange={(e) => setDateISO(e.target.value)}
+              style={{ padding: "6px 8px" }}
+            /> : ""  
+          }
           <div style={{ marginLeft: "auto", color: "#555" }}>
-            {loading ? "جارٍ التحميل..." : `${closes.length} تقفيلة${closes.length !== 1 ? "" : ""}`}
+            {loading ? "جارٍ التحميل..." : `${closes.length} تقفيلة`}
           </div>
         </div>
 
@@ -257,6 +262,47 @@ useEffect(() => {
           </table>
         </div>
       </div>
+
+      {/* Sidebar لتفاصيل الفاتورة */}
+      {selectedInvoice && (
+        <div className={styles.invoiceSidebar}>
+            <div className={styles.sidebarHeader}>
+              <h3>تفاصيل الفاتورة</h3>
+              <button onClick={closeDrawer}>إغلاق</button>
+            </div>
+
+            <div className={styles.sidebarInfo}>
+              <p><strong>اسم العميل:</strong> {selectedInvoice.clientName}</p>
+              <p><strong>رقم الهاتف:</strong> {selectedInvoice.phone}</p>
+              <p><strong>الموظف:</strong> {selectedInvoice.employee || "-"}</p>
+              <p><strong>التاريخ:</strong> {selectedInvoice.date ? new Date(selectedInvoice.date.seconds * 1000).toLocaleString("ar-EG") : "-"}</p>
+            </div>
+            <div className={styles.sidebarProducts}>
+              <h5>المنتجات</h5>
+              <table>
+                <thead>
+                  <tr>
+                    <th>الكود</th>
+                    <th>المنتج</th>
+                    <th>السعر</th>
+                    <th>الكمية</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedInvoice.cart?.map((item, index) => (
+                    <tr key={index}>
+                      <td>{item.code}</td>
+                      <td>{item.name} {item.color ? ` - ${item.color}` : ""} {item.size ? ` - ${item.size}` : ""}</td>
+                      <td>{item.sellPrice}</td>
+                      <td>{item.quantity}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+      )}
     </div>
   );
 }

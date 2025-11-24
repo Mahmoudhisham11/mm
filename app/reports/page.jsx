@@ -759,7 +759,7 @@
         {isDrawerOpen && selectedReport && (
           <div className={styles.invoiceSidebar}>
             <div className={styles.sidebarHeader}>
-              <h33>تفاصيل التقرير</h33>
+              <h3>تفاصيل التقرير</h3>
               <button onClick={closeDrawer}>إغلاق</button>
             </div>
 

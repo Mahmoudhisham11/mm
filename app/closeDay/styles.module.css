@@ -88,6 +88,159 @@
   white-space: nowrap; /* يمنع كسر الكلمات داخل الأعمدة */
 }
 
+.invoiceSidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 370px;
+  height: 100vh;
+  background: #fff;
+  box-shadow: -4px 0 15px rgba(0, 0, 0, 0.15);
+  padding: 20px;
+  overflow-y: auto;
+  z-index: 1000;
+  animation: slideIn 0.3s ease forwards;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* ✅ الحاوية الجانبية للفاتورة */
+.invoiceSidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 400px;
+  height: 100vh;
+  background: #fff;
+  box-shadow: -5px 0 20px rgba(0, 0, 0, 0.1);
+  padding: 25px;
+  overflow-y: auto;
+  z-index: 1000;
+  border-top-left-radius: 20px;
+  border-bottom-left-radius: 20px;
+  animation: slideIn 0.35s ease forwards;
+}
+
+/* ✅ انيميشن ناعم لظهور النافذة */
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ✅ ترويسة النافذة */
+.sidebarHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 12px;
+  margin-bottom: 15px;
+}
+
+.sidebarHeader h4 {
+  margin: 0;
+  color: var(--main-color);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.sidebarHeader button {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sidebarHeader button:hover {
+  color: var(--main-color);
+}
+
+/* ✅ تفاصيل العميل */
+.sidebarInfo {
+  background: #fafafa;
+  padding: 15px 12px;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
+}
+
+.sidebarInfo p {
+  margin: 6px 0;
+  font-size: 15px;
+  color: #333;
+  line-height: 1.6;
+}
+
+.sidebarInfo strong {
+  color: #000;
+}
+
+/* ✅ جدول المنتجات */
+.sidebarProducts {
+  margin-top: 15px;
+  overflow-x: auto;
+}
+
+.sidebarProducts h5 {
+  color: #222;
+  margin-bottom: 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sidebarProducts table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.sidebarProducts th,
+.sidebarProducts td {
+  border-bottom: 1px solid #eee;
+  padding: 8px;
+  text-align: center;
+}
+
+.sidebarProducts th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #555;
+}
+
+.sidebarProducts tr:hover td {
+  background-color: #f6f9ff;
+  transition: 0.2s;
+}
+
+/* ✅ تمرير ناعم داخل النافذة */
+.invoiceSidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.invoiceSidebar::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 6px;
+}
+.invoiceSidebar::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
 @media screen and (max-width: 768px) {
   .tableContainer table {
     min-width: 600px; /* يقلل عرض الجدول على شاشات أصغر */

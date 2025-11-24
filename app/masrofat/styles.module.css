@@ -5,6 +5,18 @@
     justify-content: start;
     align-items: start;
 }
+.actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+} 
+.editBtn {
+    background-color: var(--text-color);
+    font-size: 18px;
+    border: none;
+    border-radius: 8px;
+}
 .btns {
     width: 100%;
     display: flex;
