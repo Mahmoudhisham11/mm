@@ -2,7 +2,7 @@
 import SideBar from "@/components/SideBar/page";
 import styles from "./styles.module.css";
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot, getDocs} from "firebase/firestore";
 import { db } from "../firebase";
 
 export default function DailyReports() {
