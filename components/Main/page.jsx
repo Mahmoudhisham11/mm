@@ -859,10 +859,17 @@ const handlePrintInvoice = () => {
       setIsSaving(false);
       setSavePage(false);
       setShowClientPopup(false);
-      setInvoice(savedInvoice)
-      handlePrintInvoice(); 
+      setInvoice(saleData);
+      handlePrintInvoice();
+ 
 
     };
+    useEffect(() => {
+  if (invoice) {
+    handlePrintInvoice();
+  }
+}, [invoice]);
+
   const handleCloseDay = async () => {
     // 🟡 إضافة تأكيد قبل التنفيذ
     const confirmed = window.confirm("هل أنت متأكد أنك تريد تقفيل اليوم؟");
@@ -1859,37 +1866,44 @@ const handleReturnUI = async (item) => {
         </div>
       )}
       <div id="printInvoice" style={{ display: "none" }}>
-        <h3 style={{ textAlign: 'center' }}>فاتورة مبيعات</h3>
-        <p>التاريخ: {new Date().toLocaleDateString('ar-EG')}</p>
-        <p>رقم الفاتورة: {invoice.invoiceNumber}</p>
-        <p>العميل: {invoice.clientName}</p>
-        <p>الهاتف: {invoice.phone}</p>
-        <table>
-          <thead>
-            <tr>
-              <th>الكود</th>
-              <th>المنتج</th>
-              <th>الكمية</th>
-              <th>السعر</th>
+  {invoice ? ( // ✅ تحقق من وجود invoice قبل الاستخدام
+    <>
+      <h3 style={{ textAlign: 'center' }}>فاتورة مبيعات</h3>
+      <p>التاريخ: {new Date().toLocaleDateString('ar-EG')}</p>
+      <p>رقم الفاتورة: {invoice.invoiceNumber}</p>
+      <p>العميل: {invoice.clientName}</p>
+      <p>الهاتف: {invoice.phone}</p>
+      <table>
+        <thead>
+          <tr>
+            <th>الكود</th>
+            <th>المنتج</th>
+            <th>الكمية</th>
+            <th>السعر</th>
+          </tr>
+        </thead>
+        <tbody>
+          {invoice.cart?.map(item => ( // ✅ optional chaining لتجنب الخطأ
+            <tr key={item.id}>
+              <td>{item.code}</td>
+              <td>{item.name}</td>
+              <td>{item.quantity}</td>
+              <td>{item.total} جنية</td>
             </tr>
-          </thead>
-          <tbody>
-            {invoice.cart.map(item => (
-              <tr key={item.id}>
-                <td>{item.code}</td>
-                <td>{item.name}</td>
-                <td>{item.quantity}</td>
-                <td>{item.total} جنية</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={4}>الإجمالي: {invoice.total} جنية</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan={4}>الإجمالي: {invoice.total} جنية</td>
+          </tr>
+        </tfoot>
+      </table>
+    </>
+  ) : (
+    <p>لا توجد فاتورة للطباعة.</p> // رسالة بديلة لو invoice=null
+  )}
+</div>
+
     </div>
   );
 }
