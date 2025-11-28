@@ -853,7 +853,6 @@ const handlePrintInvoice = () => {
     setShowClientPopup(false);
   }
 };
-
 useEffect(() => {
   if (!invoice) return;
 
@@ -864,12 +863,32 @@ useEffect(() => {
 
   printWindow.document.write(`<html><head><title>فاتورة</title>`);
 
-  // 🟢 ربط ملف CSS خارجي للطباعة
-  printWindow.document.write(`<link rel="stylesheet" href="/print.css" />`);
+  // 🟢 CSS مباشر للطباعة
+  printWindow.document.write(`
+    <style>
+      body { font-family: Arial, sans-serif; direction: rtl; padding: 5px; }
+      .invoice { max-width: 384px; width: 100%; background: white; padding: 5px; border: 1px solid black; box-sizing: border-box; display: flex; flex-direction: column; }
+      .invoice h3 { text-align: center; margin: 2px 0; font-size: 14px; }
+      .invoice p { line-height: 1.2; font-size: 12px; }
+      .invoice table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 5px; }
+      .invoice th, .invoice td { border: 1px solid black; text-align: right; padding: 1px 3px; }
+      .invoice tfoot td { border-top: 2px solid black; font-weight: bold; font-size: 12px; }
+      .footer { text-align: center; font-size: 12px; margin-top: 5px; }
+      .imageContainer { width: 200px; height: 120px; }
+      .imageContainer img { width: 200px; height: 120px; object-fit: cover; }
+    </style>
+  `);
 
   printWindow.document.write(`</head><body>`);
-  printWindow.document.write(invoiceDiv.innerHTML);
-  printWindow.document.write(`</body></html>`);
+  
+  // 🟢 تعديل الصور لتظهر بشكل صحيح
+  const clonedInvoice = invoiceDiv.cloneNode(true);
+  const imgs = clonedInvoice.querySelectorAll('img');
+  imgs.forEach(img => {
+    img.src = `${window.location.origin}/images/logo.png`;
+  });
+
+  printWindow.document.body.appendChild(clonedInvoice);
 
   printWindow.document.close();
   printWindow.focus();
@@ -1881,7 +1900,7 @@ const handleReturnUI = async (item) => {
             <div className={styles.title}>
               <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column'}}>
                 <div className={styles.imageContainer}>
-                  <Image src={resetImage} fill style={{ objectFit: 'cover' }} alt="logo" />
+<img src={`${window.location.origin}/images/logo.png`} style="width:200px; height:120px; object-fit:cover;" />
                 </div>
                 <h3>بوابة الالف مسكن</h3>
               </div>
