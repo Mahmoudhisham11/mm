@@ -6,6 +6,8 @@ import { IoMdSearch } from "react-icons/io";
 import { FaRegTrashAlt } from "react-icons/fa";
 import { IoIosCloseCircle } from "react-icons/io";
 import { FaBars } from "react-icons/fa6";
+import Image from "next/image";
+import resetImage from "../../public/images/logo.png"
 import {
   collection, query, where, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDocs, getDoc, writeBatch,Timestamp,runTransaction 
 } from "firebase/firestore";
@@ -1865,43 +1867,63 @@ const handleReturnUI = async (item) => {
         </div>
       )}
       <div id="printInvoice" style={{ display: "none" }}>
-  {invoice ? ( // ✅ تحقق من وجود invoice قبل الاستخدام
-    <>
-      <h3 style={{ textAlign: 'center' }}>فاتورة مبيعات</h3>
-      <p>التاريخ: {new Date().toLocaleDateString('ar-EG')}</p>
-      <p>رقم الفاتورة: {invoice.invoiceNumber}</p>
-      <p>العميل: {invoice.clientName}</p>
-      <p>الهاتف: {invoice.phone}</p>
-      <table>
-        <thead>
-          <tr>
-            <th>الكود</th>
-            <th>المنتج</th>
-            <th>الكمية</th>
-            <th>السعر</th>
-          </tr>
-        </thead>
-        <tbody>
-          {invoice.cart?.map(item => ( // ✅ optional chaining لتجنب الخطأ
-            <tr key={item.id}>
-              <td>{item.code}</td>
-              <td>{item.name}</td>
-              <td>{item.quantity}</td>
-              <td>{item.total} جنية</td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td colSpan={4}>الإجمالي: {invoice.total} جنية</td>
-          </tr>
-        </tfoot>
-      </table>
-    </>
-  ) : (
-    <p>لا توجد فاتورة للطباعة.</p> // رسالة بديلة لو invoice=null
-  )}
-</div>
+        {invoice ? (
+          <div className={styles.invoice}>
+            <div className={styles.title}>
+              <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column'}}>
+                <div className={styles.imageContainer}>
+                  <Image src={resetImage} fill style={{ objectFit: 'cover' }} alt="logo" />
+                </div>
+                <h3>بوابة الالف مسكن</h3>
+              </div>
+            </div>
+
+            <h3 style={{ textAlign: 'center' }}>فاتورة مبيعات</h3>
+            <p><strong>التاريخ:</strong> {new Date().toLocaleDateString('ar-EG')}</p>
+            <p><strong>رقم الفاتورة:</strong> {invoice.invoiceNumber}</p>
+            <p><strong>العميل:</strong> {invoice.clientName}</p>
+            <p><strong>الهاتف:</strong> {invoice.phone}</p>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>الكود</th>
+                  <th>المنتج</th>
+                  <th>الكمية</th>
+                  <th>السعر</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoice.cart?.map(item => (
+                  <tr key={item.id}>
+                    <td>{item.code}</td>
+                    <td>{item.name}</td>
+                    <td>{item.quantity}</td>
+                    <td>{item.total} جنية</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={4}>الإجمالي: {invoice.total} جنية</td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <div className={styles.text}>
+              <p>عدد الاصناف:<span>{invoice.length}</span></p>
+              <p>العنوان: 1 جول جمال الف مسكن</p>
+              <p style={{ textAlign: 'center', marginTop: '5px'}}>شكراً لتعاملكم معنا!</p>
+            </div>
+
+            <div className={styles.footer}>
+              <strong>تم التوجيه بواسطة: Devoria</strong>
+            </div>
+          </div>
+        ) : (
+          <p>لا توجد فاتورة للطباعة.</p>
+        )}
+      </div>
 
     </div>
   );
