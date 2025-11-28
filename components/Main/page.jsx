@@ -656,15 +656,14 @@ const handlePrintInvoice = () => {
   const invoiceDiv = document.getElementById("printInvoice");
   if (!invoiceDiv) return alert("لا توجد فاتورة للطباعة");
 
-  const printWindow = window.open('', '', 'width=800,height=600');
-  printWindow.document.write(`<html><head><title>فاتورة</title></head><body>`);
-  printWindow.document.write(invoiceDiv.innerHTML);
-  printWindow.document.write(`</body></html>`);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
-  printWindow.close();
+  const printContents = invoiceDiv.innerHTML;
+  const originalContents = document.body.innerHTML;
+
+  document.body.innerHTML = printContents;
+  window.print();
+  document.body.innerHTML = originalContents;
 };
+
 
 
   // -------------------------
