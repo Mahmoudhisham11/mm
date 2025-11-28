@@ -66,16 +66,21 @@ function Main() {
   }, [shop]);
   
   useEffect(() => {
-    if (!shop) return;
-    const q = query(collection(db, "masrofat"), where("shop", "==", shop));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setMasrofat(data);
-    });
-    return () => unsubscribe();
+    const fetchMasrofat = async () => {
+      if (!shop) return;
+      try {
+        const q = query(collection(db, "masrofat"), where("shop", "==", shop));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setMasrofat(data);
+      } catch (error) {
+        console.error("Error fetching masrofat:", error);
+      }
+    };
+
+    fetchMasrofat();
   }, [shop]);
 
-  // products are lacosteProducts collection (as you said products stored there)
   useEffect(() => {
     if (!shop) return;
     const q = query(collection(db, "lacosteProducts"), where("shop", "==", shop));
@@ -113,16 +118,22 @@ function Main() {
       return () => unsubscribe();
     }
   }, []);
-
   useEffect(() => {
-    if (!shop) return;
-    const q = query(collection(db, 'employees'), where('shop', '==', shop));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setEmployess(data);
-    });
-    return () => unsubscribe();
+    const fetchEmployees = async () => {
+      if (!shop) return;
+      try {
+        const q = query(collection(db, 'employees'), where('shop', '==', shop));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setEmployess(data);
+      } catch (error) {
+        console.error("Error fetching employees:", error);
+      }
+    };
+
+    fetchEmployees();
   }, [shop]);
+
 
   // دالة لتبديل حالة الإخفاء
   const toggleHidden = () => {
@@ -641,9 +652,25 @@ const handleSaveNewPrice = () => {
   setProductToEdit(null);
 };
 
+const handlePrintInvoice = () => {
+  const invoiceDiv = document.getElementById("printInvoice");
+  if (!invoiceDiv) return alert("لا توجد فاتورة للطباعة");
+
+  const printWindow = window.open('', '', 'width=800,height=600');
+  printWindow.document.write(`<html><head><title>فاتورة</title></head><body>`);
+  printWindow.document.write(invoiceDiv.innerHTML);
+  printWindow.document.write(`</body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  printWindow.close();
+};
+
+
   // -------------------------
   // handleSaveReport: now we trust that stock was decremented when adding; still we verify availability as safety
   // -------------------------
+  const [invoice, setInvoice] = useState(null);
     const handleSaveReport = async () => {
       if (isSaving) return;
       setIsSaving(true);
@@ -832,7 +859,9 @@ const handleSaveNewPrice = () => {
       setIsSaving(false);
       setSavePage(false);
       setShowClientPopup(false);
-      router.push('/resete');
+      setInvoice(savedInvoice)
+      handlePrintInvoice(); 
+
     };
   const handleCloseDay = async () => {
     // 🟡 إضافة تأكيد قبل التنفيذ
@@ -1829,6 +1858,38 @@ const handleReturnUI = async (item) => {
         </div>
         </div>
       )}
+      <div id="printInvoice" style={{ display: "none" }}>
+        <h3 style={{ textAlign: 'center' }}>فاتورة مبيعات</h3>
+        <p>التاريخ: {new Date().toLocaleDateString('ar-EG')}</p>
+        <p>رقم الفاتورة: {invoice.invoiceNumber}</p>
+        <p>العميل: {invoice.clientName}</p>
+        <p>الهاتف: {invoice.phone}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>الكود</th>
+              <th>المنتج</th>
+              <th>الكمية</th>
+              <th>السعر</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.cart.map(item => (
+              <tr key={item.id}>
+                <td>{item.code}</td>
+                <td>{item.name}</td>
+                <td>{item.quantity}</td>
+                <td>{item.total} جنية</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={4}>الإجمالي: {invoice.total} جنية</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   );
 }
