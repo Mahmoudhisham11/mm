@@ -1900,7 +1900,10 @@ const handleReturnUI = async (item) => {
             <div className={styles.title}>
               <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column'}}>
                 <div className={styles.imageContainer}>
-<img src={`${window.location.origin}/images/logo.png`} style="width:200px; height:120px; object-fit:cover;" />
+                  <img 
+                    src={`${typeof window !== "undefined" ? window.location.origin : ""}/images/logo.png`} 
+                    style={{ width: 200, height: 120, objectFit: 'cover' }} 
+                  />
                 </div>
                 <h3>بوابة الالف مسكن</h3>
               </div>
@@ -1927,20 +1930,20 @@ const handleReturnUI = async (item) => {
                     <td>{item.code}</td>
                     <td>{item.name}</td>
                     <td>{item.quantity}</td>
-                    <td>{item.total} جنية</td>
+                    <td>{item.total} ج.م</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={4}>الإجمالي: {invoice.total} جنية</td>
+                  <td colSpan={4}>الإجمالي: {invoice.total} ج.م</td>
                 </tr>
               </tfoot>
             </table>
 
             <div className={styles.text}>
-              <p>عدد الاصناف:<span>{invoice.length}</span></p>
-              <p>العنوان: 1 جول جمال الف مسكن</p>
+              <p>عدد الاصناف: <span>{invoice.cart?.length || 0}</span></p>
+              <p>العنوان: 1 جول جمال ال الف مسكن</p>
               <p style={{ textAlign: 'center', marginTop: '5px'}}>شكراً لتعاملكم معنا!</p>
             </div>
 
