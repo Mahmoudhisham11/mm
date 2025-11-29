@@ -59,13 +59,19 @@ function Main() {
 
   useEffect(() => {
     if (!shop) return;
-    const q = query(collection(db, "dailySales"), where("shop", "==", shop));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const getSales = async () => {
+      const q = query(collection(db, "dailySales"), where("shop", "==", shop));
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setDailySales(data);
-    });
-    return () => unsubscribe();
+    };
+
+    getSales();
+    const interval = setInterval(getSales, 5000); // كل 5 ثواني
+
+    return () => clearInterval(interval);
   }, [shop]);
+
   
   useEffect(() => {
     const fetchMasrofat = async () => {
@@ -85,13 +91,15 @@ function Main() {
 
   useEffect(() => {
     if (!shop) return;
-    const q = query(collection(db, "lacosteProducts"), where("shop", "==", shop));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const fetchProducts = async () => {
+      const q = query(collection(db, "lacosteProducts"), where("shop", "==", shop));
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(data);
-    });
-    return () => unsubscribe();
+    };
+    fetchProducts();
   }, [shop]);
+
 
   useEffect(() => {
     if (!shop) return;
