@@ -850,46 +850,77 @@ const handleSaveNewPrice = () => {
 useEffect(() => {
   if (!invoice) return;
 
-  const invoiceDiv = document.getElementById("printInvoice");
-  if (!invoiceDiv) return;
+const printWindow = window.open('', '', 'width=800,height=600');
 
-  const printWindow = window.open('', '', 'width=800,height=600');
+printWindow.document.write(`
+<html>
+<head>
+  <title>فاتورة</title>
+  <style>
+    body { font-family: Arial; direction: rtl; padding: 5px; }
+    .invoice { max-width: 384px; width: 100%; background: white; padding: 5px; border: 1px solid black; box-sizing: border-box; display: flex; flex-direction: column; }
+    .invoice h3 { text-align: center; margin: 2px 0; font-size: 14px; }
+    .invoice p { line-height: 1.2; font-size: 12px; }
+    .invoice table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 5px; }
+    .invoice th, .invoice td { border: 1px solid black; text-align: right; padding: 1px 3px; }
+    .invoice tfoot td { border-top: 2px solid black; font-weight: bold; font-size: 12px; }
+    .footer { text-align: center; font-size: 12px; margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <div class="invoice">
+    <div style="text-align:center;">
+      <img src="${window.location.origin}/images/logo.png" style="width:200px;height:120px;object-fit:cover;" />
+      <h3>بوابة الالف مسكن</h3>
+    </div>
+    <h3 style="text-align:center;">فاتورة مبيعات</h3>
+    <p><strong>التاريخ:</strong> ${new Date(invoice.date).toLocaleDateString('ar-EG')}</p>
+    <p><strong>رقم الفاتورة:</strong> ${invoice.invoiceNumber}</p>
+    <p><strong>العميل:</strong> ${invoice.clientName}</p>
+    <p><strong>الهاتف:</strong> ${invoice.phone}</p>
+    <table>
+      <thead>
+        <tr>
+          <th>الكود</th>
+          <th>المنتج</th>
+          <th>الكمية</th>
+          <th>السعر</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${invoice.cart.map(item => `
+          <tr>
+            <td>${item.code}</td>
+            <td>${item.name}</td>
+            <td>${item.quantity}</td>
+            <td>${item.total} ج.م</td>
+          </tr>
+        `).join('')}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4">الإجمالي: ${invoice.total} ج.م</td>
+        </tr>
+      </tfoot>
+    </table>
+    <div>
+      <p>عدد الاصناف: ${invoice.cart.length}</p>
+      <p>العنوان: 1 جول جمال ال الف مسكن</p>
+      <p style="text-align:center;margin-top:5px;">شكراً لتعاملكم معنا!</p>
+    </div>
+    <div class="footer">
+      <strong>تم التوجيه بواسطة: Devoria</strong>
+    </div>
+  </div>
+</body>
+</html>
+`);
 
-  printWindow.document.write(`<html><head><title>فاتورة</title>`);
+printWindow.document.close();
+printWindow.focus();
+printWindow.print();
+printWindow.onafterprint = () => printWindow.close();
 
-  // 🟢 CSS مباشر للطباعة
-  printWindow.document.write(`
-    <style>
-      body { font-family: Arial, sans-serif; direction: rtl; padding: 5px; }
-      .invoice { max-width: 384px; width: 100%; background: white; padding: 5px; border: 1px solid black; box-sizing: border-box; display: flex; flex-direction: column; }
-      .invoice h3 { text-align: center; margin: 2px 0; font-size: 14px; }
-      .invoice p { line-height: 1.2; font-size: 12px; }
-      .invoice table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 5px; }
-      .invoice th, .invoice td { border: 1px solid black; text-align: right; padding: 1px 3px; }
-      .invoice tfoot td { border-top: 2px solid black; font-weight: bold; font-size: 12px; }
-      .footer { text-align: center; font-size: 12px; margin-top: 5px; }
-      .imageContainer { width: 200px; height: 120px; }
-      .imageContainer img { width: 200px; height: 120px; object-fit: cover; }
-    </style>
-  `);
-
-  printWindow.document.write(`</head><body>`);
-  
-  // 🟢 تعديل الصور لتظهر بشكل صحيح
-  const clonedInvoice = invoiceDiv.cloneNode(true);
-  const imgs = clonedInvoice.querySelectorAll('img');
-  imgs.forEach(img => {
-    img.src = `${window.location.origin}/images/logo.png`;
-  });
-
-  printWindow.document.body.appendChild(clonedInvoice);
-
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
-  printWindow.onafterprint = () => {
-  printWindow.close();
-};
 
 }, [invoice]);
 
