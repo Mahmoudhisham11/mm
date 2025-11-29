@@ -57,22 +57,16 @@ function Main() {
   const shop = typeof window !== "undefined" ? localStorage.getItem("shop") : "";
   const userName = typeof window !== "undefined" ? localStorage.getItem("userName") : "";
 
-  useEffect(() => {
-    if (!shop) return;
-    const getSales = async () => {
+    useEffect(() => {
+      if (!shop) return;
       const q = query(collection(db, "dailySales"), where("shop", "==", shop));
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setDailySales(data);
-    };
+      const unsubscribe = onSnapshot(q, snapshot => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setDailySales(data);
+      });
+      return () => unsubscribe();
+    }, [shop]);
 
-    getSales();
-    const interval = setInterval(getSales, 5000); // كل 5 ثواني
-
-    return () => clearInterval(interval);
-  }, [shop]);
-
-  
   useEffect(() => {
     const fetchMasrofat = async () => {
       if (!shop) return;
