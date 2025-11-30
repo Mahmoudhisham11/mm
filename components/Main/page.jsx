@@ -905,18 +905,75 @@ useEffect(() => {
 <head>
   <title>فاتورة</title>
   <style>
-    body { font-family: Arial; direction: rtl; padding: 5px; }
-    .invoice { max-width: 384px; width: 100%; background: white; padding: 5px; border: 1px solid black; box-sizing: border-box; display: flex; flex-direction: column; }
-    .invoice h3 { text-align: center; margin: 2px 0; font-size: 14px; }
-    .invoice p { line-height: 1.2; font-size: 12px; }
-    .invoice table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 5px; }
-    .invoice th, .invoice td { border: 1px solid black; text-align: right; padding: 1px 3px; }
-    .invoice tfoot td { border-top: 2px solid black; font-weight: bold; font-size: 12px; }
-    .footer { text-align: center; font-size: 12px; margin-top: 5px; }
+        
+    .resete {
+        background: none;
+        width: 100%;
+        height: auto; /* الطول يتحدد حسب محتوى الفاتورة */
+        min-height: 50px; /* طول أقل للفاتورة الصغيرة */
+        max-width: 384px; /* عرض ثابت حسب طابعة 80mm */
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start; /* يبدأ من الأعلى */
+        align-items: center;
+    }
+
+    .btn, .btnBack {
+        display: none; /* إخفاء الأزرار */
+    }
+
+    .invoice {
+        max-width: 384px;
+        width: 100%;
+        height: auto;
+        padding: 5px;
+        font-size: 12px;
+        box-sizing: border-box;
+        border: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start; /* العناصر قريبة من بعض */
+    }
+
+    .invoice h3 {
+        margin: 2px 0;
+        font-size: 14px;
+    }
+
+    .invoice p {
+        font-size: 12px;
+    }
+
+    .invoice table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+
+    .invoice th, .invoice td {
+        border: 1px solid black;
+        padding: 1px 3px;
+        text-align: right;
+        font-size: 12px;
+    }
+
+    .invoice tfoot td {
+        border-top: 2px solid black;
+        font-weight: bold;
+        font-size: 12px;
+    }
+
+    .footer {
+        text-align: center;
+        font-size: 12px;
+    }
   </style>
 </head>
 <body>
-  <div class="invoice">
+      <div class="resete">
+          <div class="invoice">
     <div style="text-align:center;">
       <img src="${window.location.origin}/images/logo.png" 
         onload="window.print()" 
@@ -962,6 +1019,7 @@ useEffect(() => {
       <strong>تم التوجيه بواسطة: Devoria</strong>
     </div>
   </div>
+      </div>
 </body>
 </html>
       `);
