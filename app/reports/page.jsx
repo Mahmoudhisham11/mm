@@ -627,7 +627,6 @@ fetchReturns();
               </>
             ) : (
               <>
-                <th>الكود</th>
                 <th>اسم العميل</th>
                 <th>رقم الهاتف</th>
                 <th>عدد العناصر</th>
@@ -703,7 +702,6 @@ fetchReturns();
               const total = Number(report.total ?? report.subtotal ?? 0);
               return (
                 <tr key={report.id}>
-                  <td>{report.code || "-"}</td>
                   <td>{report.clientName || "-"}</td>
                   <td>{report.phone || "-"}</td>
                   <td>{report.cart?.length || 0}</td>
@@ -800,6 +798,7 @@ fetchReturns();
               <table>
                 <thead>
                   <tr>
+                    <th>الكود</th>
                     <th>المنتج</th>
                     <th>السعر</th>
                     <th>الكمية</th>
@@ -811,6 +810,7 @@ fetchReturns();
                 <tbody>
                   {selectedReport.cart?.map((item, index) => (
                     <tr key={index}>
+                      <td>{item.code}</td>
                       <td>{item.name} {item.color ? ` - ${item.color}` : ""} {item.size ? ` - ${item.size}` : ""}</td>
                       <td>{item.sellPrice}</td>
                       <td>{item.quantity}</td>
