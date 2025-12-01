@@ -92,6 +92,10 @@
 }
 
 @media(max-width: 767px) {
+    .title {
+        justify-content: space-between;
+        padding: 0 10px;
+    }
     .sideBar {
         position: fixed;
         right: -200%;
@@ -105,14 +109,10 @@
     }
     .closeBtn {
         display: block;
-        position: absolute;
-        left: 10px;
-        top: 10px;
         background-color: transparent;
         color: black;
         border: none;
-        font-size: 25px;
-        margin-left: 10px;
+        font-size: 20px;
     }
     .title h2 {
         font-size: 25px;

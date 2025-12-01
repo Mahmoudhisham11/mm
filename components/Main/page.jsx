@@ -6,8 +6,8 @@ import { IoMdSearch } from "react-icons/io";
 import { FaRegTrashAlt } from "react-icons/fa";
 import { IoIosCloseCircle } from "react-icons/io";
 import { FaBars } from "react-icons/fa6";
-import Image from "next/image";
-import resetImage from "../../public/images/logo.png"
+import { FaRegEye } from "react-icons/fa";
+import { FaRegEyeSlash } from "react-icons/fa";
 import {
   collection, query, where, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDocs, getDoc, writeBatch,Timestamp,runTransaction 
 } from "firebase/firestore";
@@ -702,7 +702,7 @@ const handleSaveNewPrice = () => {
   // handleSaveReport: now we trust that stock was decremented when adding; still we verify availability as safety
   // -------------------------
   const [invoice, setInvoice] = useState(null);
-    const handleSaveReport = async () => {
+  const handleSaveReport = async () => {
   if (isSaving) return;
   setIsSaving(true);
 
@@ -878,7 +878,7 @@ const handleSaveNewPrice = () => {
   } catch (error) {
 
   try {
-    // نحفظ الفاتورة كفاتورة معلقة
+    
     const pendingSaleData = {
       invoiceNumber: Date.now(), // رقم مؤقت أو ممكن تاخد رقم من counter
       cart,
@@ -989,8 +989,8 @@ const handlePrintInvoice = (invoice) => {
 };
 
 // دالة جديدة لطلب رقم الفاتورة وطباعتها
-const handlePrintInvoiceByNumber = async () => {
-  const invoiceNumber = prompt("من فضلك أدخل رقم الفاتورة للطباعة:");
+const handlePrintInvoiceByNumber = async (number) => {
+  const invoiceNumber = number;
   if (!invoiceNumber) return;
 
   // 🔹 فتح النافذة فور الضغط
@@ -1627,6 +1627,7 @@ const handleReturnUI = async (item) => {
             <h3>المبيعات اليومية</h3>
           </div>
             
+          <div className={styles.leftSide}>
             <div className={styles.searchBox}>
             <IoMdSearch />
             <input
@@ -1637,16 +1638,17 @@ const handleReturnUI = async (item) => {
             />
           </div>
           <div className={styles.headerBtns}>
-               <button onClick={toggleHidden}>
-                {isHidden ? "👁️ إظهار الأرقام" : "🙈 إخفاء الأرقام"}
-              </button>
-              <button onClick={handleCloseDay}>
-                    تقفيل اليوم
+               <button className={styles.eyeBtn} onClick={toggleHidden}>
+                {isHidden ? <FaRegEye /> : <FaRegEyeSlash />}
               </button>
               <button className={styles.sallesBtn} onClick={() => {setOpnSalles(true), console.log(openSalles)}}>
                   فتح البيع
               </button>
+              <button className={styles.closeDay} onClick={handleCloseDay}>
+                    تقفيل اليوم
+              </button>
             </div>
+          </div>
         </div>
 
         <div className={styles.salesContainer}>
@@ -1657,11 +1659,11 @@ const handleReturnUI = async (item) => {
               <p>{isHidden? '****' : filteredInvoices.length}</p>
             </div>
             <div className={styles.card}>
-              <h4>إجمالي المبيعات</h4>
+              <h4> المبيعات</h4>
               <p>{isHidden? '****' : filteredInvoices.length > 0 ? totalSales : 0} جنيه</p>
             </div>
             <div className={styles.card}>
-              <h4>إجمالي المصروفات</h4>
+              <h4> المصروفات</h4>
               <p>{isHidden? '****' : totalMasrofat} جنيه</p>
             </div>
             <div className={styles.card}>
@@ -1739,7 +1741,7 @@ const handleReturnUI = async (item) => {
               <p><strong>📞 الهاتف:</strong> {selectedInvoice.phone || "-"}</p>
               <p><strong>💼 الموظف:</strong> {selectedInvoice.employee || "غير محدد"}</p>
               <p><strong>🕒 التاريخ:</strong> {formatDate(selectedInvoice.date)}</p>
-              <button onClick={handlePrintInvoiceByNumber}>
+              <button onClick={() => handlePrintInvoiceByNumber(selectedInvoice.invoiceNumber)}>
                 طباعة فاتورة 
               </button>
               {/* ✅ الخصم، ملاحظات الخصم، الربح قبل الإجمالي */}
