@@ -21,7 +21,7 @@ import {
   getDoc,
   writeBatch,
   Timestamp,
-  runTransaction,
+  setDoc ,
 } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import { useRouter } from "next/navigation";
