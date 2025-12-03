@@ -1404,20 +1404,25 @@ const handleSaveReport = async () => {
   };
 
   // 🌟 خريطة لتتبع المنتجات الجاري إرجاعها
-const returningItemsMap = new Map();
+// 🌟 state لتتبع حالة المرتجع لكل عنصر
+const [returningItemsState, setReturningItemsState] = useState({});
 
 // 🌟 دالة لإرجاع منتج وتحديث المخزن والفاتورة
 const handleReturnProduct = async (item, invoiceId) => {
   const itemKey = `${item.code}_${item.color || ""}_${item.size || ""}`;
-  if (returningItemsMap.get(itemKey)) return;
-  returningItemsMap.set(itemKey, true);
+
+  if (returningItemsState[itemKey]) return; // لو جاري التنفيذ
+  setReturningItemsState(prev => ({ ...prev, [itemKey]: true }));
 
   try {
     const confirmed = window.confirm(`هل أنت متأكد أنك تريد إرجاع المنتج "${item.name}"؟`);
-    if (!confirmed) return;
+    if (!confirmed) {
+      setReturningItemsState(prev => ({ ...prev, [itemKey]: false }));
+      return;
+    }
 
     // 🔹 تحديث المخزن
-    const prodQuery = item.originalProductId
+    const prodRef = item.originalProductId
       ? doc(db, "lacosteProducts", item.originalProductId)
       : (await getDocs(query(
           collection(db, "lacosteProducts"),
@@ -1425,32 +1430,74 @@ const handleReturnProduct = async (item, invoiceId) => {
           where("shop", "==", item.shop)
         ))).docs[0]?.ref;
 
-    if (prodQuery) {
-      const prodSnap = await getDoc(prodQuery);
+    if (prodRef) {
+      const prodSnap = await getDoc(prodRef);
       if (prodSnap.exists()) {
         const data = prodSnap.data();
-        // المنتج بسيط
-        let newQty = (data.quantity || 0) + (item.quantity || 0);
+        let updatedData = { ...data };
 
-        // تحديث الألوان والمقاسات
-        if (item.color && Array.isArray(data.colors)) {
-          data.colors = data.colors.map(c => {
+        // المنتج له لون ومقاس
+        if (item.color && Array.isArray(updatedData.colors)) {
+          updatedData.colors = updatedData.colors.map(c => {
             if (c.color === item.color) {
               if (item.size && Array.isArray(c.sizes)) {
-                c.sizes = c.sizes.map(s => s.size === item.size ? { ...s, qty: (s.qty || 0) + item.quantity } : s);
+                c.sizes = c.sizes.map(s =>
+                  s.size === item.size ? { ...s, qty: (s.qty || 0) + Number(item.quantity) } : s
+                );
               } else {
-                c.quantity = (c.quantity || 0) + item.quantity;
+                c.quantity = (c.quantity || 0) + Number(item.quantity);
               }
             }
             return c;
           });
-          newQty = (data.quantity || 0) + data.colors.reduce((sum, c) => sum + (c.quantity || 0) + (c.sizes?.reduce((sSum, s) => sSum + (s.qty || 0), 0) || 0), 0);
-        } else if (item.size && Array.isArray(data.sizes)) {
-          data.sizes = data.sizes.map(s => s.size === item.size ? { ...s, qty: (s.qty || 0) + item.quantity } : s);
-          newQty = (data.quantity || 0) + data.sizes.reduce((sum, s) => sum + (s.qty || 0), 0);
+        }
+        // المنتج له مقاس فقط
+        else if (item.size && Array.isArray(updatedData.sizes)) {
+          updatedData.sizes = updatedData.sizes.map(s =>
+            s.size === item.size ? { ...s, qty: (s.qty || 0) + Number(item.quantity) } : s
+          );
+        }
+        // المنتج بسيط
+        else if (!item.color && !item.size) {
+          updatedData.quantity = (updatedData.quantity || 0) + Number(item.quantity);
         }
 
-        await updateDoc(prodQuery, { ...data, quantity: newQty });
+        // حساب الكمية الكلية النهائية
+        const totalQty =
+          (updatedData.quantity || 0) +
+          (Array.isArray(updatedData.sizes)
+            ? updatedData.sizes.reduce((sum, s) => sum + (s.qty || 0), 0)
+            : 0) +
+          (Array.isArray(updatedData.colors)
+            ? updatedData.colors.reduce(
+                (sum, c) =>
+                  sum +
+                  (c.quantity || 0) +
+                  (Array.isArray(c.sizes)
+                    ? c.sizes.reduce((sSum, s) => sSum + (s.qty || 0), 0)
+                    : 0),
+                0
+              )
+            : 0);
+
+        await updateDoc(prodRef, { ...updatedData, quantity: totalQty });
+      } else {
+        // المنتج غير موجود → إضافته جديد
+        const newProd = {
+          name: item.name,
+          code: item.code,
+          quantity: item.quantity || 0,
+          buyPrice: item.buyPrice || 0,
+          sellPrice: item.sellPrice || 0,
+          shop: item.shop || shop,
+          type: item.type || "product",
+        };
+        if (item.color)
+          newProd.colors = [
+            { color: item.color, sizes: [{ size: item.size || "الكمية", qty: item.quantity }] },
+          ];
+        if (item.size && !item.color) newProd.sizes = [{ size: item.size, qty: item.quantity }];
+        await addDoc(collection(db, "lacosteProducts"), newProd);
       }
     }
 
@@ -1464,12 +1511,22 @@ const handleReturnProduct = async (item, invoiceId) => {
 
     const invoiceData = invoiceSnap.data();
     const updatedCart = invoiceData.cart.filter(
-      p => !(p.code === item.code && p.quantity === item.quantity && (p.color || "") === (item.color || "") && (p.size || "") === (item.size || ""))
+      p =>
+        !(
+          p.code === item.code &&
+          p.quantity === item.quantity &&
+          (p.color || "") === (item.color || "") &&
+          (p.size || "") === (item.size || "")
+        )
     );
 
     if (updatedCart.length > 0) {
       const newTotal = updatedCart.reduce((sum, p) => sum + (p.sellPrice || 0) * (p.quantity || 0), 0);
-      const newProfit = updatedCart.reduce((sum, p) => sum + ((p.sellPrice || 0) - (p.buyPrice || 0)) * (p.quantity || 0), 0);
+      const newProfit = updatedCart.reduce(
+        (sum, p) => sum + ((p.sellPrice || 0) - (p.buyPrice || 0)) * (p.quantity || 0),
+        0
+      );
+
       await updateDoc(invoiceRef, { cart: updatedCart, total: newTotal, profit: newProfit });
 
       // تحديث employeesReports
@@ -1498,13 +1555,14 @@ const handleReturnProduct = async (item, invoiceId) => {
     console.error("خطأ أثناء الإرجاع:", error);
     alert("❌ حدث خطأ أثناء إرجاع المنتج");
   } finally {
-    returningItemsMap.delete(itemKey);
+    setReturningItemsState(prev => ({ ...prev, [itemKey]: false })); // الزرار يرجع تاني
   }
 };
 
 // 🌟 دالة لتحديث واجهة المستخدم بعد المرتجع
 const handleReturnUI = async (item) => {
   await handleReturnProduct(item, selectedInvoice.id);
+
   setSelectedInvoice(prev => ({
     ...prev,
     cart: prev.cart.filter(
@@ -1512,6 +1570,7 @@ const handleReturnUI = async (item) => {
     ),
   }));
 };
+
 
 
   return (
@@ -1739,15 +1798,15 @@ const handleReturnUI = async (item) => {
                           {(userName === "mostafabeso10@gmail.com" ||
                             userName === "medo") && (
                             <button
-                              className={styles.returnBtn}
-                              disabled={returning === idx}
-                              onClick={() => {
-                                setReturning(idx);
-                                handleReturnUI(item);
-                              }}
-                            >
-                              {returning === idx ? "جارٍ التنفيذ..." : "مرتجع"}
-                            </button>
+  className={styles.returnBtn}
+  disabled={returningItemsState[`${item.code}_${item.color || ""}_${item.size || ""}`]}
+  onClick={() => handleReturnUI(item)}
+>
+  {returningItemsState[`${item.code}_${item.color || ""}_${item.size || ""}`]
+    ? " جاري التنفيذ..."
+    : "مرتجع"}
+</button>
+
                           )}
                         </td>
                       </tr>
