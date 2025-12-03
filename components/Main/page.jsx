@@ -930,65 +930,70 @@ function Main() {
   // handleSaveReport: now we trust that stock was decremented when adding; still we verify availability as safety
   // -------------------------
   const [invoice, setInvoice] = useState(null);
-  const handleSaveReport = async () => {
-    if (isSaving) return;
-    setIsSaving(true);
+const handleSaveReport = async () => {
+  if (isSaving) return;
+  setIsSaving(true);
 
-    const clientName = nameRef.current?.value || "";
-    const phone = phoneRef.current?.value || "";
+  const clientName = nameRef.current?.value || "";
+  const phone = phoneRef.current?.value || "";
 
-    if (!Array.isArray(cart) || cart.length === 0) {
-      alert("يرجى إضافة منتجات إلى السلة قبل الحفظ");
-      setIsSaving(false);
-      return;
-    }
+  if (!Array.isArray(cart) || cart.length === 0) {
+    alert("يرجى إضافة منتجات إلى السلة قبل الحفظ");
+    setIsSaving(false);
+    return;
+  }
 
-    try {
-      // 🔢 جلب آخر رقم فاتورة بدون transaction
-      const counterRef = doc(db, "counters", "invoiceCounter");
-      const counterSnap = await getDoc(counterRef);
-      const currentNumber = counterSnap.exists()
-        ? counterSnap.data().lastInvoiceNumber || 0
-        : 0;
-      const invoiceNumber = currentNumber + 1;
+  try {
+    // 🔢 جلب آخر رقم فاتورة بدون transaction
+    const counterRef = doc(db, "counters", "invoiceCounter");
+    const counterSnap = await getDoc(counterRef);
+    const currentNumber = counterSnap.exists()
+      ? counterSnap.data().lastInvoiceNumber || 0
+      : 0;
+    const invoiceNumber = currentNumber + 1;
 
-      // تحديث آخر رقم فاتورة
-      await setDoc(
-        counterRef,
-        { lastInvoiceNumber: invoiceNumber },
-        { merge: true }
-      );
+    // تحديث آخر رقم فاتورة
+    await setDoc(counterRef, { lastInvoiceNumber: invoiceNumber }, { merge: true });
 
-      // 🗂️ تحضير بيانات الفاتورة
-      const saleData = {
-        invoiceNumber,
-        cart,
-        clientName,
-        phone,
-        date: new Date(),
-        shop,
-      };
+    // 🧮 حساب إجمالي الفاتورة
+    const total = cart.reduce((sum, item) => sum + (item.sellPrice || 0) * (item.quantity || 0), 0);
 
-      // 🔥 حفظ الفاتورة
-      await addDoc(collection(db, "dailySales"), saleData);
-      await updateStock(cart);
-      setInvoice(saleData)
-      handlePrintInvoice(saleData)
+    // 🗂️ تحضير بيانات الفاتورة
+    const saleData = {
+      invoiceNumber,
+      cart,
+      clientName,
+      phone,
+      date: new Date(),
+      shop,
+      total, // ← إجمالي الفاتورة
+    };
 
-      // 🧹 تفريغ السلة
-      const qCart = query(collection(db, "cart"), where("shop", "==", shop));
-      const cartSnapshot = await getDocs(qCart);
-      for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
+    // 🔥 حفظ الفاتورة
+    await addDoc(collection(db, "dailySales"), saleData);
 
-      alert("✅ تم حفظ البيعة بنجاح");
-      setCart([]);
-    } catch (error) {
-      console.error("فشل حفظ الفاتورة:", error);
-      alert("حدث خطأ أثناء حفظ الفاتورة");
-    } finally {
-      setIsSaving(false);
-    }
-  };
+    // تحديث المخزن
+    await updateStock(cart);
+
+    // 👀 طباعة الفاتورة
+    setInvoice(saleData);
+    handlePrintInvoice(saleData);
+
+    // 🧹 تفريغ السلة
+    const qCart = query(collection(db, "cart"), where("shop", "==", shop));
+    const cartSnapshot = await getDocs(qCart);
+    for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
+
+    alert("✅ تم حفظ البيعة بنجاح");
+    setCart([]);
+  } catch (error) {
+    console.error("فشل حفظ الفاتورة:", error);
+    alert("حدث خطأ أثناء حفظ الفاتورة");
+  } finally {
+    setIsSaving(false);
+  }
+};
+
   // دالة لتحديث المخزن بعد البيع
   const updateStock = async (cartItems) => {
     if (!Array.isArray(cartItems) || cartItems.length === 0) return;
