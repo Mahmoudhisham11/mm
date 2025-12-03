@@ -943,57 +943,35 @@ const handleSaveReport = async () => {
     return;
   }
 
-  // 🧾 جلب رقم الفاتورة التسلسلي
+  // 🧾 رقم الفاتورة التسلسلي
   const counterRef = doc(db, "counters", "invoiceCounter");
   const invoiceNumber = await runTransaction(db, async (transaction) => {
     const counterSnap = await transaction.get(counterRef);
-    let currentNumber = 0;
-
-    if (counterSnap.exists()) {
-      currentNumber = counterSnap.data().lastInvoiceNumber || 0;
-    }
-
+    const currentNumber = counterSnap.exists() ? counterSnap.data().lastInvoiceNumber || 0 : 0;
     const newNumber = currentNumber + 1;
     transaction.set(counterRef, { lastInvoiceNumber: newNumber }, { merge: true });
     return newNumber;
   });
 
-  // 🧮 الحسابات
-  const computedSubtotal = cart.reduce(
-    (sum, item) => sum + item.sellPrice * item.quantity,
-    0
-  );
-  const computedFinalTotal = Math.max(0, computedSubtotal - appliedDiscount);
-  const discountRatio = computedSubtotal > 0 ? appliedDiscount / computedSubtotal : 0;
-  const computedProfit = cart.reduce((sum, item) => {
-    const itemSellTotal = item.sellPrice * item.quantity;
-    const itemDiscount = itemSellTotal * discountRatio;
-    const itemNetSell = itemSellTotal - itemDiscount;
-    const itemBuyTotal = (item.buyPrice || 0) * item.quantity;
-    return sum + (itemNetSell - itemBuyTotal);
-  }, 0);
-
-  // 🔥 بيانات الفاتورة
+  // 🧾 بيانات الفاتورة
   const saleData = {
     invoiceNumber,
     cart,
     clientName,
     phone,
-    subtotal: computedSubtotal,
-    discount: appliedDiscount,
-    discountNotes: discountNotes,
-    total: computedFinalTotal,
-    profit: computedProfit,
+    total: cart.reduce((sum, item) => sum + item.sellPrice * item.quantity, 0) - appliedDiscount,
     date: new Date(),
     shop,
     employee: selectedEmployee || "غير محدد",
+    discount: appliedDiscount,
+    discountNotes,
   };
 
-  // 🧾 حفظ البيانات
+  // 🔥 حفظ البيانات
   await addDoc(collection(db, "dailySales"), saleData);
   await addDoc(collection(db, "employeesReports"), saleData);
 
-  // 🔄 تحديث المخزون بعد البيع
+  // 🔄 تحديث المخزون للمنتجات المباعة فقط
   for (const item of cart) {
     if (!item.originalProductId) continue;
 
@@ -1001,89 +979,8 @@ const handleSaveReport = async () => {
     const prodSnap = await getDoc(prodRef);
     if (!prodSnap.exists()) continue;
 
-    const prodData = prodSnap.data();
-
-    // 🟢 المنتج بسيط
-    const isSimpleProduct =
-      (!Array.isArray(prodData.colors) || prodData.colors.length === 0) &&
-      (!Array.isArray(prodData.sizes) || prodData.sizes.length === 0);
-
-    if (isSimpleProduct) {
-      const currentQty = prodData.quantity || 0;
-      const newQty = Math.max(0, currentQty - item.quantity);
-      await updateDoc(prodRef, { quantity: newQty });
-      continue;
-    }
-
-    // 🟠 المنتج له ألوان/مقاسات
-    let updatedData = { ...prodData };
-
-    // له ألوان
-    if (item.color && Array.isArray(updatedData.colors)) {
-      updatedData.colors = updatedData.colors
-        .map((c) => {
-          if (c.color !== item.color) return c;
-
-          if (item.size && Array.isArray(c.sizes)) {
-            c.sizes = c.sizes
-              .map((s) => {
-                if (s.size === item.size) {
-                  s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
-                }
-                return s;
-              })
-              .filter((s) => (s.qty || 0) > 0);
-          } else {
-            c.quantity = Math.max(0, (c.quantity || 0) - item.quantity);
-          }
-
-          return c;
-        })
-        .filter((c) => {
-          if (c.sizes) return c.sizes.length > 0;
-          if (c.quantity !== undefined) return c.quantity > 0;
-          return true;
-        });
-    }
-
-    // له مقاسات فقط
-    if (item.size && Array.isArray(updatedData.sizes)) {
-      updatedData.sizes = updatedData.sizes
-        .map((s) => {
-          if (s.size === item.size) {
-            s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
-          }
-          return s;
-        })
-        .filter((s) => (s.qty || 0) > 0);
-    }
-
-    // حساب إجمالي الكمية النهائي
-    let totalQty = updatedData.quantity || 0;
-
-    if (Array.isArray(updatedData.sizes)) {
-      totalQty = updatedData.sizes.reduce((sum, s) => sum + (s.qty || 0), 0);
-    }
-
-    if (Array.isArray(updatedData.colors)) {
-      totalQty = updatedData.colors.reduce((sum, c) => {
-        if (c.sizes) {
-          return sum + c.sizes.reduce((sSum, s) => sSum + (s.qty || 0), 0);
-        }
-        return sum + (c.quantity || 0);
-      }, 0);
-    }
-
-    if (totalQty > 0) {
-      await updateDoc(prodRef, { ...updatedData, quantity: totalQty });
-    } else {
-      await deleteDoc(prodRef);
-    }
-  }
-
-  // 🗂️ حفظ آخر فاتورة محليًا
-  if (typeof window !== "undefined") {
-    localStorage.setItem("lastInvoice", JSON.stringify(saleData));
+    const currentQty = prodSnap.data().quantity || 0;
+    await updateDoc(prodRef, { quantity: Math.max(0, currentQty - item.quantity) });
   }
 
   // 🧹 تفريغ السلة
@@ -1091,8 +988,9 @@ const handleSaveReport = async () => {
   const cartSnapshot = await getDocs(qCart);
   for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
 
-  // ✅ تعيين الفاتورة للطباعة وطباعة مباشرة
+  // ✅ الطباعة وحفظ آخر فاتورة
   setInvoice(saleData);
+  if (typeof window !== "undefined") localStorage.setItem("lastInvoice", JSON.stringify(saleData));
   alert("تم حفظ التقرير بنجاح");
   handlePrintInvoice(saleData);
 
@@ -1103,6 +1001,7 @@ const handleSaveReport = async () => {
   setSavePage(false);
   setShowClientPopup(false);
 };
+
 
 
   const handlePrintInvoice = (invoice) => {
