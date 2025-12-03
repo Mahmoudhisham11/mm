@@ -985,6 +985,7 @@ const handleSaveReport = async () => {
     for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
 
     alert("✅ تم حفظ البيعة بنجاح");
+    setShowClientPopup(false)
     setCart([]);
   } catch (error) {
     console.error("فشل حفظ الفاتورة:", error);
@@ -1403,318 +1404,115 @@ const handleSaveReport = async () => {
   };
 
   // 🌟 خريطة لتتبع المنتجات الجاري إرجاعها
-  const returningItemsMap = new Map();
+const returningItemsMap = new Map();
 
-  const handleReturnProduct = async (item, invoiceId) => {
-    const itemKey = `${item.code}_${item.color || ""}_${item.size || ""}`;
+// 🌟 دالة لإرجاع منتج وتحديث المخزن والفاتورة
+const handleReturnProduct = async (item, invoiceId) => {
+  const itemKey = `${item.code}_${item.color || ""}_${item.size || ""}`;
+  if (returningItemsMap.get(itemKey)) return;
+  returningItemsMap.set(itemKey, true);
 
-    // 🔹 منع الضغط مرتين على نفس المنتج
-    if (returningItemsMap.get(itemKey)) return;
-    returningItemsMap.set(itemKey, true);
+  try {
+    const confirmed = window.confirm(`هل أنت متأكد أنك تريد إرجاع المنتج "${item.name}"؟`);
+    if (!confirmed) return;
 
-    // 🔹 إضافة التأكيد قبل أي عملية
-    const confirmed = window.confirm(
-      `هل أنت متأكد أنك تريد إرجاع المنتج "${item.name}"؟`
-    );
-    if (!confirmed) {
-      returningItemsMap.delete(itemKey);
-      return; // لو ضغط إلغاء، نخرج من الدالة
-    }
-
-    try {
-      // البحث عن المنتج وتحديثه أو إنشاؤه
-      let prodRef = null;
-      if (item.originalProductId) {
-        prodRef = doc(db, "lacosteProducts", item.originalProductId);
-      } else {
-        const q = query(
+    // 🔹 تحديث المخزن
+    const prodQuery = item.originalProductId
+      ? doc(db, "lacosteProducts", item.originalProductId)
+      : (await getDocs(query(
           collection(db, "lacosteProducts"),
           where("code", "==", item.code),
           where("shop", "==", item.shop)
-        );
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) prodRef = snapshot.docs[0].ref;
-      }
+        ))).docs[0]?.ref;
 
-      if (prodRef) {
-        const prodSnap = await getDoc(prodRef);
-        if (prodSnap.exists()) {
-          const prodData = prodSnap.data();
+    if (prodQuery) {
+      const prodSnap = await getDoc(prodQuery);
+      if (prodSnap.exists()) {
+        const data = prodSnap.data();
+        // المنتج بسيط
+        let newQty = (data.quantity || 0) + (item.quantity || 0);
 
-          let newColors = Array.isArray(prodData.colors)
-            ? prodData.colors.map((c) => ({
-                color: c.color,
-                sizes: Array.isArray(c.sizes)
-                  ? c.sizes.map((s) => ({
-                      size: s.size,
-                      qty: Number(s.qty ?? s.quantity ?? 0),
-                    }))
-                  : undefined,
-                quantity:
-                  c.quantity !== undefined ? Number(c.quantity) : undefined,
-              }))
-            : null;
-
-          let newSizes = Array.isArray(prodData.sizes)
-            ? prodData.sizes.map((s) => ({
-                size: s.size,
-                qty: Number(s.qty ?? s.quantity ?? 0),
-              }))
-            : null;
-
-          // 🔹 المنتج له لون
-          if (item.color) {
-            const found =
-              newColors && newColors.find((c) => c.color === item.color);
-            if (found) {
-              if (item.size && Array.isArray(found.sizes)) {
-                newColors = newColors.map((c) => {
-                  if (c.color === item.color) {
-                    const sizesCopy = c.sizes.map((s) => ({ ...s }));
-                    const target = sizesCopy.find((s) => s.size === item.size);
-                    if (target) {
-                      target.qty += Number(item.quantity || 0);
-                    } else {
-                      sizesCopy.push({
-                        size: item.size,
-                        qty: Number(item.quantity || 0),
-                      });
-                    }
-                    return { ...c, sizes: sizesCopy };
-                  }
-                  return c;
-                });
-              } else if (!item.size && Array.isArray(found.sizes)) {
-                const sizesCopy = found.sizes.map((s) => ({ ...s }));
-                const generic = sizesCopy.find((s) => s.size === "الكمية");
-                if (generic) generic.qty += Number(item.quantity || 0);
-                else
-                  sizesCopy.push({
-                    size: "الكمية",
-                    qty: Number(item.quantity || 0),
-                  });
-                newColors = newColors.map((c) =>
-                  c.color === item.color ? { ...c, sizes: sizesCopy } : c
-                );
+        // تحديث الألوان والمقاسات
+        if (item.color && Array.isArray(data.colors)) {
+          data.colors = data.colors.map(c => {
+            if (c.color === item.color) {
+              if (item.size && Array.isArray(c.sizes)) {
+                c.sizes = c.sizes.map(s => s.size === item.size ? { ...s, qty: (s.qty || 0) + item.quantity } : s);
               } else {
-                newColors = newColors.map((c) =>
-                  c.color === item.color
-                    ? {
-                        ...c,
-                        quantity:
-                          (c.quantity || 0) + Number(item.quantity || 0),
-                      }
-                    : c
-                );
+                c.quantity = (c.quantity || 0) + item.quantity;
               }
-            } else {
-              const addObj = item.size
-                ? {
-                    color: item.color,
-                    sizes: [
-                      { size: item.size, qty: Number(item.quantity || 0) },
-                    ],
-                  }
-                : { color: item.color, quantity: Number(item.quantity || 0) };
-              newColors = [...(newColors || []), addObj];
             }
-          }
-          // 🔹 المنتج له مقاس فقط
-          else if (item.size && !item.color) {
-            const foundS =
-              newSizes && newSizes.find((s) => s.size === item.size);
-            if (foundS)
-              newSizes = newSizes.map((s) =>
-                s.size === item.size
-                  ? { ...s, qty: (s.qty || 0) + Number(item.quantity || 0) }
-                  : s
-              );
-            else
-              newSizes = [
-                ...(newSizes || []),
-                { size: item.size, qty: Number(item.quantity || 0) },
-              ];
-          }
-          // 🔹 المنتج بسيط (كمية فقط)
-          else if (!item.color && !item.size) {
-            const newQty =
-              (Number(prodData.quantity) || 0) + Number(item.quantity || 0);
-            await updateDoc(prodRef, { quantity: newQty });
-          }
-
-          // تحديث باقي بيانات المنتج في المخزون إذا كان له لون أو مقاس
-          if (item.color || item.size) {
-            const newTotalQty = computeNewTotalQuantity(
-              newColors,
-              newSizes,
-              Number(prodData.quantity || 0)
-            );
-            const updateObj = { quantity: newTotalQty };
-            if (newColors)
-              updateObj.colors = newColors.map((c) => {
-                const o = { color: c.color };
-                if (Array.isArray(c.sizes))
-                  o.sizes = c.sizes.map((s) => ({
-                    size: s.size,
-                    qty: Number(s.qty || 0),
-                  }));
-                if (c.quantity !== undefined) o.quantity = c.quantity;
-                return o;
-              });
-            if (newSizes)
-              updateObj.sizes = newSizes.map((s) => ({
-                size: s.size,
-                qty: Number(s.qty || 0),
-              }));
-            await updateDoc(prodRef, updateObj);
-          }
-        } else {
-          // المنتج مش موجود - نضيفه جديد
-          const toAdd = {
-            name: item.name,
-            code: item.code || "",
-            quantity: item.quantity || 0,
-            buyPrice: item.buyPrice || 0,
-            sellPrice: item.sellPrice || 0,
-            shop: item.shop || shop,
-            type: item.type || "product",
-          };
-          if (item.color)
-            toAdd.colors = [
-              {
-                color: item.color,
-                sizes: [
-                  { size: item.size || "الكمية", qty: item.quantity || 0 },
-                ],
-              },
-            ];
-          if (item.size && !item.color)
-            toAdd.sizes = [{ size: item.size, qty: item.quantity || 0 }];
-          await addDoc(collection(db, "lacosteProducts"), toAdd);
+            return c;
+          });
+          newQty = (data.quantity || 0) + data.colors.reduce((sum, c) => sum + (c.quantity || 0) + (c.sizes?.reduce((sSum, s) => sSum + (s.qty || 0), 0) || 0), 0);
+        } else if (item.size && Array.isArray(data.sizes)) {
+          data.sizes = data.sizes.map(s => s.size === item.size ? { ...s, qty: (s.qty || 0) + item.quantity } : s);
+          newQty = (data.quantity || 0) + data.sizes.reduce((sum, s) => sum + (s.qty || 0), 0);
         }
-      } else {
-        // المنتج مش موجود خالص - نضيفه
-        const toAdd = {
-          name: item.name,
-          code: item.code || "",
-          quantity: item.quantity || 0,
-          buyPrice: item.buyPrice || 0,
-          sellPrice: item.sellPrice || 0,
-          shop: item.shop || shop,
-          type: item.type || "product",
-        };
-        if (item.color)
-          toAdd.colors = [
-            {
-              color: item.color,
-              sizes: [{ size: item.size || "الكمية", qty: item.quantity || 0 }],
-            },
-          ];
-        if (item.size && !item.color)
-          toAdd.sizes = [{ size: item.size, qty: item.quantity || 0 }];
-        await addDoc(collection(db, "lacosteProducts"), toAdd);
+
+        await updateDoc(prodQuery, { ...data, quantity: newQty });
       }
-
-      // تحديث الفاتورة في dailySales
-      const invoiceRef = doc(db, "dailySales", invoiceId);
-      const invoiceSnap = await getDoc(invoiceRef);
-
-      if (invoiceSnap.exists()) {
-        const invoiceData = invoiceSnap.data();
-        const updatedCart = invoiceData.cart.filter(
-          (p) =>
-            !(
-              p.code === item.code &&
-              p.quantity === item.quantity &&
-              p.sellPrice === item.sellPrice &&
-              p.name === item.name &&
-              (p.color || "") === (item.color || "") &&
-              (p.size || "") === (item.size || "")
-            )
-        );
-
-        if (updatedCart.length > 0) {
-          const newTotal = updatedCart.reduce(
-            (sum, p) => sum + (p.sellPrice * p.quantity || 0),
-            0
-          );
-          const newProfit = updatedCart.reduce(
-            (sum, p) =>
-              sum + (p.sellPrice - (p.buyPrice || 0)) * (p.quantity || 1),
-            0
-          );
-
-          await updateDoc(invoiceRef, {
-            cart: updatedCart,
-            total: newTotal,
-            profit: newProfit,
-          });
-
-          // 🔹 تحديث نفس الفاتورة في employeesReports
-          const empQ = query(
-            collection(db, "employeesReports"),
-            where("date", "==", invoiceData.date),
-            where("shop", "==", invoiceData.shop)
-          );
-          const empSnap = await getDocs(empQ);
-          empSnap.forEach(async (d) => {
-            await updateDoc(d.ref, {
-              cart: updatedCart,
-              total: newTotal,
-              profit: newProfit,
-            });
-          });
-
-          alert(`✅ تم إرجاع ${item.name} بنجاح وحُذف من الفاتورة!`);
-        } else {
-          await deleteDoc(invoiceRef);
-
-          // 🔹 حذف نفس الفاتورة من employeesReports
-          const empQ = query(
-            collection(db, "employeesReports"),
-            where("date", "==", invoiceData.date),
-            where("shop", "==", invoiceData.shop)
-          );
-          const empSnap = await getDocs(empQ);
-          empSnap.forEach(async (d) => {
-            await deleteDoc(d.ref);
-          });
-
-          alert(`✅ تم إرجاع ${item.name} وحُذفت الفاتورة لأنها أصبحت فارغة.`);
-        }
-      } else {
-        alert("⚠️ لم يتم العثور على الفاتورة!");
-      }
-    } catch (error) {
-      console.error("خطأ أثناء الإرجاع:", error);
-      alert("❌ حدث خطأ أثناء إرجاع المنتج");
-    } finally {
-      // 🔹 السماح بالضغط مرة أخرى بعد انتهاء العملية
-      returningItemsMap.delete(itemKey);
     }
-  };
 
-  const handleReturnUI = async (item) => {
-    await handleReturnProduct(item, selectedInvoice.id);
+    // 🔹 تحديث الفاتورة
+    const invoiceRef = doc(db, "dailySales", invoiceId);
+    const invoiceSnap = await getDoc(invoiceRef);
+    if (!invoiceSnap.exists()) {
+      alert("⚠️ لم يتم العثور على الفاتورة!");
+      return;
+    }
 
-    // 🔥 إزالة المنتج من الجدول مباشرة بعد تنفيذ المرتجع
-    const updatedCart = selectedInvoice.cart.filter(
-      (p) =>
-        !(
-          p.code === item.code &&
-          p.quantity === item.quantity &&
-          p.sellPrice === item.sellPrice &&
-          p.name === item.name &&
-          (p.color || "") === (item.color || "") &&
-          (p.size || "") === (item.size || "")
-        )
+    const invoiceData = invoiceSnap.data();
+    const updatedCart = invoiceData.cart.filter(
+      p => !(p.code === item.code && p.quantity === item.quantity && (p.color || "") === (item.color || "") && (p.size || "") === (item.size || ""))
     );
 
-    setSelectedInvoice({
-      ...selectedInvoice,
-      cart: updatedCart,
-    });
-  };
+    if (updatedCart.length > 0) {
+      const newTotal = updatedCart.reduce((sum, p) => sum + (p.sellPrice || 0) * (p.quantity || 0), 0);
+      const newProfit = updatedCart.reduce((sum, p) => sum + ((p.sellPrice || 0) - (p.buyPrice || 0)) * (p.quantity || 0), 0);
+      await updateDoc(invoiceRef, { cart: updatedCart, total: newTotal, profit: newProfit });
+
+      // تحديث employeesReports
+      const empSnap = await getDocs(query(
+        collection(db, "employeesReports"),
+        where("date", "==", invoiceData.date),
+        where("shop", "==", invoiceData.shop)
+      ));
+      for (const d of empSnap.docs) {
+        await updateDoc(d.ref, { cart: updatedCart, total: newTotal, profit: newProfit });
+      }
+
+      alert(`✅ تم إرجاع ${item.name} بنجاح وحُذف من الفاتورة!`);
+    } else {
+      await deleteDoc(invoiceRef);
+      const empSnap = await getDocs(query(
+        collection(db, "employeesReports"),
+        where("date", "==", invoiceData.date),
+        where("shop", "==", invoiceData.shop)
+      ));
+      for (const d of empSnap.docs) await deleteDoc(d.ref);
+
+      alert(`✅ تم إرجاع ${item.name} وحُذفت الفاتورة لأنها أصبحت فارغة.`);
+    }
+  } catch (error) {
+    console.error("خطأ أثناء الإرجاع:", error);
+    alert("❌ حدث خطأ أثناء إرجاع المنتج");
+  } finally {
+    returningItemsMap.delete(itemKey);
+  }
+};
+
+// 🌟 دالة لتحديث واجهة المستخدم بعد المرتجع
+const handleReturnUI = async (item) => {
+  await handleReturnProduct(item, selectedInvoice.id);
+  setSelectedInvoice(prev => ({
+    ...prev,
+    cart: prev.cart.filter(
+      p => !(p.code === item.code && p.quantity === item.quantity && (p.color || "") === (item.color || "") && (p.size || "") === (item.size || ""))
+    ),
+  }));
+};
+
 
   return (
     <div className={styles.mainContainer}>
