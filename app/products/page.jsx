@@ -1,4 +1,4 @@
-'use client';
+"use client";
 import SideBar from "@/components/SideBar/page";
 import styles from "./styles.module.css";
 import { useState, useEffect } from "react";
@@ -36,10 +36,10 @@ function Products() {
   const [totalBuy, setTotalBuy] = useState(0);
   const [totalSell, setTotalSell] = useState(0);
   const [finaltotal, setFinalTotal] = useState(0);
-  const [totalProducts, setTotalProducts] = useState(0)
+  const [totalProducts, setTotalProducts] = useState(0);
   const [showDeletePopup, setShowDeletePopup] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleteForm, setDeleteForm] = useState([]);  
+  const [deleteForm, setDeleteForm] = useState([]);
   const [searchDate, setSearchDate] = useState("");
   const [form, setForm] = useState({
     name: "",
@@ -60,9 +60,9 @@ function Products() {
   const [tempColors, setTempColors] = useState([]);
 
   const sizeGroups = {
-    "شبابي": ["36", "37", "38", "39", "40", "41"],
-    "رجالي": ["40", "41", "42", "43", "44", "45"],
-    "هدوم": ["S", "M", "L", "XL", "2XL"],
+    شبابي: ["36", "37", "38", "39", "40", "41"],
+    رجالي: ["40", "41", "42", "43", "44", "45"],
+    هدوم: ["S", "M", "L", "XL", "2XL"],
   };
 
   const router = useRouter();
@@ -74,7 +74,10 @@ function Products() {
         router.push("/");
         return;
       }
-      const q = query(collection(db, "users"), where("userName", "==", userName));
+      const q = query(
+        collection(db, "users"),
+        where("userName", "==", userName)
+      );
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
         const user = querySnapshot.docs[0].data();
@@ -94,147 +97,152 @@ function Products() {
     checkLock();
   }, []);
 
-useEffect(() => {
-  const shop = localStorage.getItem("shop");
-  if (!shop) return;
+  useEffect(() => {
+    const shop = localStorage.getItem("shop");
+    if (!shop) return;
 
-  const q = query(
-    collection(db, "lacosteProducts"),
-    where("shop", "==", shop),
-    where("type", "==", "product")
-  );
+    const q = query(
+      collection(db, "lacosteProducts"),
+      where("shop", "==", shop),
+      where("type", "==", "product")
+    );
 
-  // إنشاء الـ listener
-  const unsubscribe = onSnapshot(
-    q,
-    (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+    // إنشاء الـ listener
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
 
-      setProducts(data);
+        setProducts(data);
 
-      // ------------------------------------------------------------
-      // 1) الفلترة
-      // ------------------------------------------------------------
-      let filtered = data;
+        // ------------------------------------------------------------
+        // 1) الفلترة
+        // ------------------------------------------------------------
+        let filtered = data;
 
-      if (searchCode.trim()) {
-        filtered = filtered.filter((p) =>
-          p.code?.toString().toLowerCase().includes(searchCode.trim().toLowerCase())
-        );
-      }
+        if (searchCode.trim()) {
+          filtered = filtered.filter((p) =>
+            p.code
+              ?.toString()
+              .toLowerCase()
+              .includes(searchCode.trim().toLowerCase())
+          );
+        }
 
-      if (searchDate) {
-        const selected = new Date(searchDate).toLocaleDateString("ar-EG");
-        filtered = filtered.filter((p) => {
-          if (!p.date?.toDate) return false;
-          const productDate = p.date.toDate().toLocaleDateString("ar-EG");
-          return productDate === selected;
+        if (searchDate) {
+          const selected = new Date(searchDate).toLocaleDateString("ar-EG");
+          filtered = filtered.filter((p) => {
+            if (!p.date?.toDate) return false;
+            const productDate = p.date.toDate().toLocaleDateString("ar-EG");
+            return productDate === selected;
+          });
+        }
+
+        setFilteredProducts(filtered);
+
+        // ------------------------------------------------------------
+        // 2) حساب إجمالي الكميات
+        // ------------------------------------------------------------
+        let totalQty = 0;
+        filtered.forEach((product) => {
+          let productQty = 0;
+          if (product.colors && product.colors.length) {
+            product.colors.forEach((c) => {
+              if (c.sizes && c.sizes.length) {
+                c.sizes.forEach((sz) => {
+                  productQty += Number(sz.qty || 0);
+                });
+              } else if (c.quantity) {
+                productQty += Number(c.quantity || 0);
+              }
+            });
+          } else {
+            productQty = Number(product.quantity || 0);
+          }
+          totalQty += productQty;
         });
+        setTotalProducts(totalQty);
+
+        // ------------------------------------------------------------
+        // 3) حساب الإجماليات
+        // ------------------------------------------------------------
+        let totalBuyAmount = 0;
+        let totalSellAmount = 0;
+        let finalTotalAmount = 0;
+
+        filtered.forEach((product) => {
+          let productQty = 0;
+          if (product.colors && product.colors.length) {
+            product.colors.forEach((c) => {
+              if (c.sizes && c.sizes.length) {
+                c.sizes.forEach((sz) => {
+                  productQty += Number(sz.qty || 0);
+                });
+              } else if (c.quantity) {
+                productQty += Number(c.quantity || 0);
+              }
+            });
+          } else {
+            productQty = Number(product.quantity || 0);
+          }
+
+          totalBuyAmount += (product.buyPrice || 0) * productQty;
+          totalSellAmount += (product.sellPrice || 0) * productQty;
+          finalTotalAmount += (product.finalPrice || 0) * productQty;
+        });
+
+        setTotalBuy(totalBuyAmount);
+        setTotalSell(totalSellAmount);
+        setFinalTotal(finalTotalAmount);
+      },
+      (err) => {
+        console.error("Error fetching products with snapshot:", err);
       }
+    );
 
-      setFilteredProducts(filtered);
-
-      // ------------------------------------------------------------
-      // 2) حساب إجمالي الكميات
-      // ------------------------------------------------------------
-      let totalQty = 0;
-      filtered.forEach((product) => {
-        let productQty = 0;
-        if (product.colors && product.colors.length) {
-          product.colors.forEach((c) => {
-            if (c.sizes && c.sizes.length) {
-              c.sizes.forEach((sz) => {
-                productQty += Number(sz.qty || 0);
-              });
-            } else if (c.quantity) {
-              productQty += Number(c.quantity || 0);
-            }
-          });
-        } else {
-          productQty = Number(product.quantity || 0);
-        }
-        totalQty += productQty;
-      });
-      setTotalProducts(totalQty);
-
-      // ------------------------------------------------------------
-      // 3) حساب الإجماليات
-      // ------------------------------------------------------------
-      let totalBuyAmount = 0;
-      let totalSellAmount = 0;
-      let finalTotalAmount = 0;
-
-      filtered.forEach((product) => {
-        let productQty = 0;
-        if (product.colors && product.colors.length) {
-          product.colors.forEach((c) => {
-            if (c.sizes && c.sizes.length) {
-              c.sizes.forEach((sz) => {
-                productQty += Number(sz.qty || 0);
-              });
-            } else if (c.quantity) {
-              productQty += Number(c.quantity || 0);
-            }
-          });
-        } else {
-          productQty = Number(product.quantity || 0);
-        }
-
-        totalBuyAmount += (product.buyPrice || 0) * productQty;
-        totalSellAmount += (product.sellPrice || 0) * productQty;
-        finalTotalAmount += (product.finalPrice || 0) * productQty;
-      });
-
-      setTotalBuy(totalBuyAmount);
-      setTotalSell(totalSellAmount);
-      setFinalTotal(finalTotalAmount);
-    },
-    (err) => {
-      console.error("Error fetching products with snapshot:", err);
-    }
-  );
-
-  // تنظيف الـ listener عند إلغاء المكون
-  return () => unsubscribe();
-}, [searchCode, searchDate]);
-
-
+    // تنظيف الـ listener عند إلغاء المكون
+    return () => unsubscribe();
+  }, [searchCode, searchDate]);
 
   const getNextCode = async () => {
     const shop = localStorage.getItem("shop");
-    const q = query(collection(db, "lacosteProducts"), where("shop", "==", shop));
+    const q = query(
+      collection(db, "lacosteProducts"),
+      where("shop", "==", shop),
+      where("type", "==", "product")
+    );
     const snapshot = await getDocs(q);
+
     if (snapshot.empty) return 1000;
 
     const codes = snapshot.docs
       .map((doc) => Number(doc.data().code))
-      .filter((code) => !isNaN(code));
+      .filter((code) => !isNaN(code) && code >= 1000); // يمنع الأكواد المبوظة
 
     const maxCode = Math.max(...codes);
     return maxCode + 1;
   };
 
   const computeTotalProducts = (productsArr) => {
-  let total = 0;
+    let total = 0;
 
-  productsArr.forEach((product) => {
-    let qty = 0;
+    productsArr.forEach((product) => {
+      let qty = 0;
 
-    if (product.colors && product.colors.length) {
-      qty = computeTotalQtyFromColors(product.colors); // ← دي الدالة اللي عندك
-    } else {
-      qty = Number(product.quantity || 0);
-    }
+      if (product.colors && product.colors.length) {
+        qty = computeTotalQtyFromColors(product.colors); // ← دي الدالة اللي عندك
+      } else {
+        qty = Number(product.quantity || 0);
+      }
 
-    total += qty;
-  });
+      total += qty;
+    });
 
-  return total;
-};
-
+    return total;
+  };
 
   const computeTotalQtyFromColors = (colorsArr) => {
     let total = 0;
@@ -254,10 +262,12 @@ useEffect(() => {
   const handleAddProduct = async () => {
     const shop = localStorage.getItem("shop");
     const newCode = await getNextCode();
+
+    // لو المنتج مفيهوش ألوان → خليه quantity = قيمة المستخدم
     const totalQty =
-      colors && colors.length
+      colors && colors.length > 0
         ? computeTotalQtyFromColors(colors)
-        : Number(form.quantity) || 0;
+        : Number(form.quantity || 0);
 
     const productObj = {
       code: newCode,
@@ -266,8 +276,7 @@ useEffect(() => {
       sellPrice: Number(form.sellPrice) || 0,
       finalPrice: Number(finalPrice) || 0,
       quantity: totalQty,
-      colors: colors || [],
-      sizes: [],
+      colors: colors && colors.length > 0 ? colors : null, // ← مهم جدًا
       sizeType: form.sizeType || "",
       category: form.category || "",
       date: Timestamp.now(),
@@ -278,6 +287,7 @@ useEffect(() => {
     await addDoc(collection(db, "lacosteProducts"), productObj);
 
     alert("✅ تم إضافة المنتج بنجاح");
+
     setForm({
       name: "",
       buyPrice: "",
@@ -290,69 +300,66 @@ useEffect(() => {
     setColors([]);
   };
 
-const handleDelete = async (product) => {
+  const handleDelete = async (product) => {
+    const hasColors = product.colors && product.colors.length > 0;
 
-  const hasColors = product.colors && product.colors.length > 0;
+    // ✅ لو المنتج ملوش ألوان → نحذفه فورًا + نخزّنه في deletedProducts
+    if (!hasColors) {
+      try {
+        // الكمية اللي تتحسب في التقارير
+        const deletedQty = Number(product.quantity || 1);
 
-  // ✅ لو المنتج ملوش ألوان → نحذفه فورًا + نخزّنه في deletedProducts
-  if (!hasColors) {
-    try {
-      // الكمية اللي تتحسب في التقارير
-      const deletedQty = Number(product.quantity || 1);
+        // 1. تخزين المنتج في deletedProducts
+        await addDoc(collection(db, "deletedProducts"), {
+          name: product.name,
+          buyPrice: Number(product.buyPrice) || 0,
+          sellPrice: Number(product.sellPrice) || 0,
+          deletedTotalQty: deletedQty, // 👈 أهم سطر
+          shop: product.shop || shop, // لو بتستخدم shop
+          code: product.code || "",
+          type: product.type || "",
+          deletedAt: new Date(),
+        });
 
-      // 1. تخزين المنتج في deletedProducts
-      await addDoc(collection(db, "deletedProducts"), {
-        name: product.name,
-        buyPrice: Number(product.buyPrice) || 0,
-        sellPrice: Number(product.sellPrice) || 0,
-        deletedTotalQty: deletedQty,     // 👈 أهم سطر
-        shop: product.shop || shop,      // لو بتستخدم shop
-        code: product.code || "",
-        type: product.type || "",
-        deletedAt: new Date(),
-      });
+        // 2. حذف المنتج من lacosteProducts
+        await deleteDoc(doc(db, "lacosteProducts", product.id));
 
-      // 2. حذف المنتج من lacosteProducts
-      await deleteDoc(doc(db, "lacosteProducts", product.id));
+        alert("تم حذف المنتج وحفظه في السجل بنجاح");
+      } catch (e) {
+        console.error("Error deleting product:", e);
+        alert("حدث خطأ أثناء الحذف");
+      }
 
-      alert("تم حذف المنتج وحفظه في السجل بنجاح");
-
-    } catch (e) {
-      console.error("Error deleting product:", e);
-      alert("حدث خطأ أثناء الحذف");
+      return; // مهم جدًا
     }
 
-    return; // مهم جدًا
-  }
+    // 🔽 الكود القديم لفتح الـ popup لو المنتج ليه ألوان/مقاسات
+    setDeleteTarget(product);
 
-  // 🔽 الكود القديم لفتح الـ popup لو المنتج ليه ألوان/مقاسات
-  setDeleteTarget(product);
+    const formatted = (product.colors || []).map((c) => ({
+      color: c.color,
+      sizes: (c.sizes || []).map((s) => ({
+        size: s.size,
+        qty: s.qty,
+        deleteQty: 0,
+      })),
+    }));
 
-  const formatted = (product.colors || []).map((c) => ({
-    color: c.color,
-    sizes: (c.sizes || []).map((s) => ({
-      size: s.size,
-      qty: s.qty,
-      deleteQty: 0,
-    }))
-  }));
+    setDeleteForm(formatted);
+    setShowDeletePopup(true);
+  };
 
-  setDeleteForm(formatted);
-  setShowDeletePopup(true);
-};
-
-
-const computeTempColorsQty = () => {
-  if (!tempColors || tempColors.length === 0) return Number(form.quantity) || 0;
-  return tempColors.reduce((total, c) => {
-    const colorQty = c.sizes && c.sizes.length
-      ? c.sizes.reduce((sum, s) => sum + Number(s.qty || 0), 0)
-      : 0;
-    return total + colorQty;
-  }, 0);
-};
-
-
+  const computeTempColorsQty = () => {
+    if (!tempColors || tempColors.length === 0)
+      return Number(form.quantity) || 0;
+    return tempColors.reduce((total, c) => {
+      const colorQty =
+        c.sizes && c.sizes.length
+          ? c.sizes.reduce((sum, s) => sum + Number(s.qty || 0), 0)
+          : 0;
+      return total + colorQty;
+    }, 0);
+  };
 
   const handleEdit = (product) => {
     setEditId(product.id);
@@ -365,7 +372,7 @@ const computeTempColorsQty = () => {
       quantity: product.quantity || "",
       category: product.category || "",
     });
-    setFinalPrice(product.finalPrice)
+    setFinalPrice(product.finalPrice);
 
     if (product.colors && product.colors.length) {
       const normalized = product.colors.map((c) => {
@@ -376,13 +383,21 @@ const computeTempColorsQty = () => {
           }));
           return { color: c.color, sizes };
         } else if (c.quantity !== undefined) {
-          return { color: c.color, sizes: [{ size: "الكمية", qty: Number(c.quantity || 0) }] };
+          return {
+            color: c.color,
+            sizes: [{ size: "الكمية", qty: Number(c.quantity || 0) }],
+          };
         } else {
           return { color: c.color || "غير معروف", sizes: [] };
         }
       });
       setColors(normalized);
-      setTempColors(normalized.map(c => ({ color: c.color, sizes: c.sizes.map(s => ({...s})) })));
+      setTempColors(
+        normalized.map((c) => ({
+          color: c.color,
+          sizes: c.sizes.map((s) => ({ ...s })),
+        }))
+      );
     } else {
       setColors([]);
       setTempColors([]);
@@ -393,68 +408,89 @@ const computeTempColorsQty = () => {
 
   const handleUpdateProduct = async () => {
     if (!editId) return;
-    try {
-      const totalQty = colors && colors.length
-        ? computeTotalQtyFromColors(colors)
-        : Number(form.quantity) || 0;
 
-      const productRef = doc(db, "lacosteProducts", editId);
-      await updateDoc(productRef, {
-        name: form.name || "",
-        buyPrice: Number(form.buyPrice) || 0,
-        sellPrice: Number(form.sellPrice) || 0,
-        finalPrice: Number(finalPrice) || 0,
-        quantity: totalQty,
-        colors: colors || [],
-        sizes: [],
-        sizeType: form.sizeType || "",
-        category: form.category || "",
-      });
+    const shop = localStorage.getItem("shop");
 
-      alert("✅ تم تحديث المنتج");
-      setEditId(null);
-      setForm({
-        name: "",
-        buyPrice: "",
-        sellPrice: "",
-        color: "",
-        sizeType: "",
-        quantity: "",
-        category: "",
-      });
-      setColors([]);
-      setActive(false);
-    } catch (err) {
-      console.error("❌ خطأ أثناء التحديث:", err);
+    const productRef = doc(db, "lacosteProducts", editId);
+    const snap = await getDoc(productRef);
+    const oldProduct = snap.data();
+
+    // لو المستخدم ما فتحش أو ما عدلش الألوان → خلي نفس القديم
+    const finalColors =
+      colors && colors.length > 0
+        ? colors
+        : oldProduct.colors && oldProduct.colors.length > 0
+        ? oldProduct.colors
+        : null;
+
+    // حساب الكمية بشكل صحيح
+    let totalQty = 0;
+    if (finalColors && finalColors.length > 0) {
+      totalQty = computeTotalQtyFromColors(finalColors);
+    } else {
+      totalQty = Number(form.quantity || oldProduct.quantity || 0);
     }
+
+    await updateDoc(productRef, {
+      name: form.name || "",
+      buyPrice: Number(form.buyPrice) || 0,
+      sellPrice: Number(form.sellPrice) || 0,
+      finalPrice: Number(finalPrice) || 0,
+      quantity: totalQty,
+      colors: finalColors,
+      sizeType: form.sizeType || oldProduct.sizeType || "",
+      category: form.category || oldProduct.category || "",
+    });
+
+    alert("✅ تم تحديث المنتج بنجاح");
+
+    setEditId(null);
+    setForm({
+      name: "",
+      buyPrice: "",
+      sellPrice: "",
+      color: "",
+      sizeType: "",
+      quantity: "",
+      category: "",
+    });
+    setColors([]);
+    setActive(false);
   };
 
   const openModalForCategory = (category) => {
     setModalCategory(category);
     setModalSizeType(form.sizeType || "");
-    setTempColors(colors.length
-      ? colors.map(c => ({ color: c.color, sizes: c.sizes.map(s => ({ ...s })) }))
-      : []);
+    setTempColors(
+      colors.length
+        ? colors.map((c) => ({
+            color: c.color,
+            sizes: c.sizes.map((s) => ({ ...s })),
+          }))
+        : []
+    );
     setShowModal(true);
   };
 
   const handleCategorySelect = (category) => {
-    setForm(prev => ({ ...prev, category }));
+    setForm((prev) => ({ ...prev, category }));
     openModalForCategory(category);
   };
 
   const addTempColor = () => {
     const newColor = prompt("اكتب اللون الجديد:");
     if (!newColor) return;
-    setTempColors(prev => {
-      const exists = prev.find(p => p.color.toLowerCase() === newColor.toLowerCase());
+    setTempColors((prev) => {
+      const exists = prev.find(
+        (p) => p.color.toLowerCase() === newColor.toLowerCase()
+      );
       if (exists) return prev;
       return [...prev, { color: newColor, sizes: [] }];
     });
   };
 
   const removeTempColor = (colorName) => {
-    setTempColors(prev => prev.filter(c => c.color !== colorName));
+    setTempColors((prev) => prev.filter((c) => c.color !== colorName));
   };
 
   const addTempSizeToColor = (colorIndex) => {
@@ -462,10 +498,13 @@ const computeTempColorsQty = () => {
     if (!sizeName) return;
     const qtyStr = prompt("اكتب الكمية لهذا المقاس (رقم):", "1");
     const qty = Math.max(0, Number(qtyStr || 0));
-    setTempColors(prev => {
-      const copy = prev.map(c => ({ color: c.color, sizes: c.sizes.map(s => ({ ...s })) }));
+    setTempColors((prev) => {
+      const copy = prev.map((c) => ({
+        color: c.color,
+        sizes: c.sizes.map((s) => ({ ...s })),
+      }));
       const target = copy[colorIndex];
-      const existing = target.sizes.find(s => s.size === sizeName);
+      const existing = target.sizes.find((s) => s.size === sizeName);
       if (existing) {
         existing.qty = Number(existing.qty || 0) + qty;
       } else {
@@ -476,41 +515,63 @@ const computeTempColorsQty = () => {
   };
 
   const incTempSizeQty = (colorIndex, sizeName) => {
-    setTempColors(prev => prev.map((c, ci) => {
-      if (ci !== colorIndex) return c;
-      return { ...c, sizes: c.sizes.map(s => s.size === sizeName ? { ...s, qty: Number(s.qty || 0) + 1 } : s) };
-    }));
+    setTempColors((prev) =>
+      prev.map((c, ci) => {
+        if (ci !== colorIndex) return c;
+        return {
+          ...c,
+          sizes: c.sizes.map((s) =>
+            s.size === sizeName ? { ...s, qty: Number(s.qty || 0) + 1 } : s
+          ),
+        };
+      })
+    );
   };
 
   const decTempSizeQty = (colorIndex, sizeName) => {
-    setTempColors(prev => prev.map((c, ci) => {
-      if (ci !== colorIndex) return c;
-      return { ...c, sizes: c.sizes.map(s => s.size === sizeName ? { ...s, qty: Math.max(0, Number(s.qty || 0) - 1) } : s) };
-    }));
+    setTempColors((prev) =>
+      prev.map((c, ci) => {
+        if (ci !== colorIndex) return c;
+        return {
+          ...c,
+          sizes: c.sizes.map((s) =>
+            s.size === sizeName
+              ? { ...s, qty: Math.max(0, Number(s.qty || 0) - 1) }
+              : s
+          ),
+        };
+      })
+    );
   };
 
   const removeTempSizeFromColor = (colorIndex, sizeName) => {
-    setTempColors(prev => prev.map((c, ci) => {
-      if (ci !== colorIndex) return c;
-      return { ...c, sizes: c.sizes.filter(s => s.size !== sizeName) };
-    }));
+    setTempColors((prev) =>
+      prev.map((c, ci) => {
+        if (ci !== colorIndex) return c;
+        return { ...c, sizes: c.sizes.filter((s) => s.size !== sizeName) };
+      })
+    );
   };
 
   const addPresetSizesToColor = (colorIndex) => {
-    const group = modalCategory === "احذية" && modalSizeType
-      ? sizeGroups[modalSizeType]
-      : modalCategory === "هدوم"
+    const group =
+      modalCategory === "احذية" && modalSizeType
+        ? sizeGroups[modalSizeType]
+        : modalCategory === "هدوم"
         ? sizeGroups["هدوم"]
         : [];
     if (!group.length) {
       alert("لا توجد مجموعة جاهزة للصنف/نوع المقاس الحالي.");
       return;
     }
-    setTempColors(prev => {
-      const copy = prev.map(c => ({ color: c.color, sizes: c.sizes.map(s => ({ ...s })) }));
+    setTempColors((prev) => {
+      const copy = prev.map((c) => ({
+        color: c.color,
+        sizes: c.sizes.map((s) => ({ ...s })),
+      }));
       const target = copy[colorIndex];
-      group.forEach(sz => {
-        if (!target.sizes.find(s => s.size === sz)) {
+      group.forEach((sz) => {
+        if (!target.sizes.find((s) => s.size === sz)) {
           target.sizes.push({ size: sz, qty: 1 });
         }
       });
@@ -519,15 +580,17 @@ const computeTempColorsQty = () => {
   };
 
   const saveModal = () => {
-    const cleaned = tempColors.map(c => ({
-      color: c.color,
-      sizes: (c.sizes || [])
-        .filter(s => Number(s.qty || 0) > 0)
-        .map(s => ({ size: s.size, qty: Number(s.qty || 0) })),
-    })).filter(c => c.color && c.sizes && c.sizes.length > 0);
+    const cleaned = tempColors
+      .map((c) => ({
+        color: c.color,
+        sizes: (c.sizes || [])
+          .filter((s) => Number(s.qty || 0) > 0)
+          .map((s) => ({ size: s.size, qty: Number(s.qty || 0) })),
+      }))
+      .filter((c) => c.color && c.sizes && c.sizes.length > 0);
 
     setColors(cleaned);
-    setForm(prev => ({ ...prev, sizeType: modalSizeType }));
+    setForm((prev) => ({ ...prev, sizeType: modalSizeType }));
     setShowModal(false);
   };
 
@@ -604,11 +667,11 @@ const computeTempColorsQty = () => {
         <body>
           <div class="label">
           <div class="container">
-          <div class="name">${product.name ?? ''}</div>
+          <div class="name">${product.name ?? ""}</div>
           </div>
             
             <svg id="barcode" class="barcode"></svg>
-            <div class="price">${product.code ?? ''} </div>
+            <div class="price">${product.code ?? ""} </div>
           </div>
           <script>
             window.onload = function () {
@@ -631,134 +694,156 @@ const computeTempColorsQty = () => {
     printWindow.document.write(htmlContent);
     printWindow.document.close();
   };
-const confirmDeleteSelected = async () => {
-  if (!deleteTarget || !deleteForm.length) return;
+  const confirmDeleteSelected = async () => {
+    if (!deleteTarget || !deleteForm.length) return;
 
-  const shop = localStorage.getItem("shop");
+    const shop = localStorage.getItem("shop");
 
-  // تجهيز قائمة العناصر اللي هتتحذف فعليًا
-  const deletedList = [];
-  let deletedTotalQty = 0;
-  let deletedTotalValue = 0; // بناءً على سعر الشراء في المنتج كافتراض
+    // تجهيز قائمة العناصر اللي هتتحذف فعليًا
+    const deletedList = [];
+    let deletedTotalQty = 0;
+    let deletedTotalValue = 0; // بناءً على سعر الشراء في المنتج كافتراض
 
-  // validate using for-loops so we can exit early
-  for (let ci = 0; ci < deleteForm.length; ci++) {
-    const color = deleteForm[ci];
-    for (let si = 0; si < color.sizes.length; si++) {
-      const size = color.sizes[si];
-      const dq = Number(size.deleteQty || 0);
-      const available = Number(size.qty || 0);
+    // validate using for-loops so we can exit early
+    for (let ci = 0; ci < deleteForm.length; ci++) {
+      const color = deleteForm[ci];
+      for (let si = 0; si < color.sizes.length; si++) {
+        const size = color.sizes[si];
+        const dq = Number(size.deleteQty || 0);
+        const available = Number(size.qty || 0);
 
-      if (dq > 0) {
-        if (dq > available) {
-          alert(`لا يمكنك حذف أكثر من الكمية الموجودة للمقاس ${size.size} (اللون ${color.color})`);
-          return; // خروج فوري لو فيه خطأ
+        if (dq > 0) {
+          if (dq > available) {
+            alert(
+              `لا يمكنك حذف أكثر من الكمية الموجودة للمقاس ${size.size} (اللون ${color.color})`
+            );
+            return; // خروج فوري لو فيه خطأ
+          }
+
+          // تجمع بيانات المحذوف
+          deletedList.push({
+            color: color.color,
+            size: size.size,
+            qty: dq,
+          });
+
+          deletedTotalQty += dq;
+
+          // حساب قيمة المحذوف — نفترض سعر الشراء للمنتج كله
+          const buyPrice = Number(deleteTarget.buyPrice || 0);
+          deletedTotalValue += buyPrice * dq;
         }
-
-        // تجمع بيانات المحذوف
-        deletedList.push({
-          color: color.color,
-          size: size.size,
-          qty: dq,
-        });
-
-        deletedTotalQty += dq;
-
-        // حساب قيمة المحذوف — نفترض سعر الشراء للمنتج كله
-        const buyPrice = Number(deleteTarget.buyPrice || 0);
-        deletedTotalValue += buyPrice * dq;
       }
     }
-  }
 
-  if (deletedList.length === 0) {
-    alert("لم تحدد أي كميات للحذف");
-    return;
-  }
-
-  try {
-    // 1) إضافة المحذوف إلى deletedProducts مع تفصيل الكميات وقيمتها
-    await addDoc(collection(db, "deletedProducts"), {
-      ...deleteTarget,
-      deletedParts: deletedList,
-      deletedTotalQty,
-      deletedTotalValue,
-      deletedAt: Timestamp.now(),
-      originalId: deleteTarget.id,
-      shop
-    });
-
-    // 2) تعديل المنتج الأصلي
-    let updatedColors = deleteTarget.colors.map(c => ({
-      color: c.color,
-      sizes: c.sizes.map(s => ({ ...s }))
-    }));
-
-    // طرح الكميات المحذوفة
-    deletedList.forEach(del => {
-      const col = updatedColors.find(c => c.color === del.color);
-      if (!col) return;
-      const size = col.sizes.find(s => String(s.size) === String(del.size));
-      if (!size) return;
-      size.qty = Number(size.qty || 0) - Number(del.qty || 0);
-    });
-
-    // حذف المقاسات اللي بقت صفر
-    updatedColors = updatedColors.map(c => ({
-      color: c.color,
-      sizes: c.sizes.filter(s => Number(s.qty || 0) > 0)
-    })).filter(c => c.sizes.length > 0);
-
-    const productRef = doc(db, "lacosteProducts", deleteTarget.id);
-
-    if (updatedColors.length === 0) {
-      // حذف المنتج بالكامل
-      await deleteDoc(productRef);
-    } else {
-      // إعادة حساب الكمية الإجمالية
-      const newQuantity = updatedColors.reduce(
-        (t, c) => t + c.sizes.reduce((s, x) => s + Number(x.qty || 0), 0),
-        0
-      );
-
-      // تحديث المنتج
-      await updateDoc(productRef, {
-        colors: updatedColors,
-        quantity: newQuantity
-      });
+    if (deletedList.length === 0) {
+      alert("لم تحدد أي كميات للحذف");
+      return;
     }
 
-    // تنظيف الواجهة
-    setShowDeletePopup(false);
-    setDeleteTarget(null);
-    setDeleteForm([]);
+    try {
+      // 1) إضافة المحذوف إلى deletedProducts مع تفصيل الكميات وقيمتها
+      await addDoc(collection(db, "deletedProducts"), {
+        ...deleteTarget,
+        deletedParts: deletedList,
+        deletedTotalQty,
+        deletedTotalValue,
+        deletedAt: Timestamp.now(),
+        originalId: deleteTarget.id,
+        shop,
+      });
 
-    // اختياري: إظهار ملخص للمستخدم
-    alert(`✅ تم حذف ${deletedTotalQty} قطعة (قيمة تقريبية: ${deletedTotalValue} كقيمة شراء).`);
+      // 2) تعديل المنتج الأصلي
+      let updatedColors = deleteTarget.colors.map((c) => ({
+        color: c.color,
+        sizes: c.sizes.map((s) => ({ ...s })),
+      }));
 
-  } catch (err) {
-    console.error("خطأ أثناء عملية الحذف الجزئي:", err);
-    alert("حدث خطأ أثناء حذف العناصر، حاول مرة أخرى.");
-  }
-};
+      // طرح الكميات المحذوفة
+      deletedList.forEach((del) => {
+        const col = updatedColors.find((c) => c.color === del.color);
+        if (!col) return;
+        const size = col.sizes.find((s) => String(s.size) === String(del.size));
+        if (!size) return;
+        size.qty = Number(size.qty || 0) - Number(del.qty || 0);
+      });
 
+      // حذف المقاسات اللي بقت صفر
+      updatedColors = updatedColors
+        .map((c) => ({
+          color: c.color,
+          sizes: c.sizes.filter((s) => Number(s.qty || 0) > 0),
+        }))
+        .filter((c) => c.sizes.length > 0);
+
+      const productRef = doc(db, "lacosteProducts", deleteTarget.id);
+
+      if (updatedColors.length === 0) {
+        // حذف المنتج بالكامل
+        await deleteDoc(productRef);
+      } else {
+        // إعادة حساب الكمية الإجمالية
+        const newQuantity = updatedColors.reduce(
+          (t, c) => t + c.sizes.reduce((s, x) => s + Number(x.qty || 0), 0),
+          0
+        );
+
+        // تحديث المنتج
+        await updateDoc(productRef, {
+          colors: updatedColors,
+          quantity: newQuantity,
+        });
+      }
+
+      // تنظيف الواجهة
+      setShowDeletePopup(false);
+      setDeleteTarget(null);
+      setDeleteForm([]);
+
+      // اختياري: إظهار ملخص للمستخدم
+      alert(
+        `✅ تم حذف ${deletedTotalQty} قطعة (قيمة تقريبية: ${deletedTotalValue} كقيمة شراء).`
+      );
+    } catch (err) {
+      console.error("خطأ أثناء عملية الحذف الجزئي:", err);
+      alert("حدث خطأ أثناء حذف العناصر، حاول مرة أخرى.");
+    }
+  };
 
   return (
     <div className={styles.products}>
       <SideBar />
       <div className={styles.content}>
         <div className={styles.btns}>
-          <button onClick={() => { setActive(false); setEditId(null); }}>كل المنتجات</button>
-          <button onClick={() => { setActive(true); setEditId(null); }}>اضف منتج جديد</button>
+          <button
+            onClick={() => {
+              setActive(false);
+              setEditId(null);
+            }}
+          >
+            كل المنتجات
+          </button>
+          <button
+            onClick={() => {
+              setActive(true);
+              setEditId(null);
+            }}
+          >
+            اضف منتج جديد
+          </button>
         </div>
 
-        {loading ? <p>🔄 جاري التحقق...</p> : !auth ? null : (
+        {loading ? (
+          <p>🔄 جاري التحقق...</p>
+        ) : !auth ? null : (
           <>
             {!active && (
               <div className={styles.phoneContainer}>
                 <div className={styles.searchBox}>
                   <div className="inputContainer">
-                    <label><CiSearch /></label>
+                    <label>
+                      <CiSearch />
+                    </label>
                     <input
                       type="text"
                       list="codesList"
@@ -772,8 +857,8 @@ const confirmDeleteSelected = async () => {
                       ))}
                     </datalist>
                   </div>
-                  <div className="inputContainer" style={{marginTop: '15px'}}>
-                    <input 
+                  <div className="inputContainer" style={{ marginTop: "15px" }}>
+                    <input
                       type="date"
                       value={searchDate}
                       onChange={(e) => setSearchDate(e.target.value)}
@@ -804,103 +889,126 @@ const confirmDeleteSelected = async () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {([...filteredProducts]
-                        .sort((a, b) => Number(a.code) - Number(b.code))  // ⭐ ترتيب المنتجات حسب الكود
-                      ).map((product) => {
-                        const colorsList = product.colors || [];
-                        let totalQ = 0;
+                      {[...filteredProducts]
+                        .sort((a, b) => Number(a.code) - Number(b.code)) // ⭐ ترتيب المنتجات حسب الكود
+                        .map((product) => {
+                          const colorsList = product.colors || [];
+                          let totalQ = 0;
 
-                        // حساب الكمية الإجمالية لكل المنتج
-                        colorsList.forEach(c => {
-                          const colorTotal = (c.sizes && c.sizes.length)
-                            ? c.sizes.reduce((s, it) => s + Number(it.qty || 0), 0)
-                            : (c.quantity || 0);
-                          totalQ += colorTotal;
-                        });
+                          // حساب الكمية الإجمالية لكل المنتج
+                          colorsList.forEach((c) => {
+                            const colorTotal =
+                              c.sizes && c.sizes.length
+                                ? c.sizes.reduce(
+                                    (s, it) => s + Number(it.qty || 0),
+                                    0
+                                  )
+                                : c.quantity || 0;
+                            totalQ += colorTotal;
+                          });
 
-                        return (
-                          <tr key={product.id}>
-                            <td>{product.code}</td>
-                            <td>{product.name || "-"}</td>
-                            <td>{product.buyPrice || 0} EGP</td>
-                            <td>{product.sellPrice || 0} EGP</td>
-                            <td>{product.finalPrice} EGP</td>
-                            <td>{totalQ || product.quantity || 0}</td>
+                          return (
+                            <tr key={product.id}>
+                              <td>{product.code}</td>
+                              <td>{product.name || "-"}</td>
+                              <td>{product.buyPrice || 0} EGP</td>
+                              <td>{product.sellPrice || 0} EGP</td>
+                              <td>{product.finalPrice} EGP</td>
+                              <td>{totalQ || product.quantity || 0}</td>
 
-                            {/* خلية الألوان مع الكمية */}
-                            <td style={{ maxWidth: 150 }}>
-                              {colorsList.length === 0 ? (
-                                "-"
-                              ) : (
-                                colorsList.map(c => {
-                                  const colorTotal = (c.sizes && c.sizes.length)
-                                    ? c.sizes.reduce((s, it) => s + Number(it.qty || 0), 0)
-                                    : (c.quantity || 0);
-                                  return (
-                                    <div
-                                      key={c.color}
-                                      style={{
-                                        whiteSpace: "nowrap",
-                                        border: "1px solid #eee",
-                                        padding: "2px 6px",
-                                        borderRadius: 4,
-                                        background: "#f9f9f9",
-                                        fontSize: 14,
-                                        marginBottom: 4
-                                      }}
-                                    >
-                                      <strong>{c.color}:</strong> {colorTotal}
-                                    </div>
-                                  );
-                                })
-                              )}
-                            </td>
+                              {/* خلية الألوان مع الكمية */}
+                              <td style={{ maxWidth: 150 }}>
+                                {colorsList.length === 0
+                                  ? "-"
+                                  : colorsList.map((c) => {
+                                      const colorTotal =
+                                        c.sizes && c.sizes.length
+                                          ? c.sizes.reduce(
+                                              (s, it) =>
+                                                s + Number(it.qty || 0),
+                                              0
+                                            )
+                                          : c.quantity || 0;
+                                      return (
+                                        <div
+                                          key={c.color}
+                                          style={{
+                                            whiteSpace: "nowrap",
+                                            border: "1px solid #eee",
+                                            padding: "2px 6px",
+                                            borderRadius: 4,
+                                            background: "#f9f9f9",
+                                            fontSize: 14,
+                                            marginBottom: 4,
+                                          }}
+                                        >
+                                          <strong>{c.color}:</strong>{" "}
+                                          {colorTotal}
+                                        </div>
+                                      );
+                                    })}
+                              </td>
 
-                            {/* خلية تفصيل المقاسات */}
-                            <td style={{ maxWidth: 300 }}>
-                              {colorsList.length === 0 ? (
-                                "-"
-                              ) : (
-                                colorsList.map(c => {
-                                  const detail = (c.sizes && c.sizes.length)
-                                    ? c.sizes.map(s => `${s.size}(${s.qty})`).join(", ")
-                                    : (c.quantity ? `كمية: ${c.quantity}` : "-");
-                                  return (
-                                    <div
-                                      key={c.color}
-                                      style={{
-                                        whiteSpace: "nowrap",
-                                        border: "1px solid #eee",
-                                        padding: "2px 6px",
-                                        borderRadius: 4,
-                                        background: "#f9f9f9",
-                                        fontSize: 14,
-                                        marginBottom: 4
-                                      }}
-                                    >
-                                      <strong>{c.color}:</strong> {detail}
-                                    </div>
-                                  );
-                                })
-                              )}
-                            </td>
+                              {/* خلية تفصيل المقاسات */}
+                              <td style={{ maxWidth: 300 }}>
+                                {colorsList.length === 0
+                                  ? "-"
+                                  : colorsList.map((c) => {
+                                      const detail =
+                                        c.sizes && c.sizes.length
+                                          ? c.sizes
+                                              .map((s) => `${s.size}(${s.qty})`)
+                                              .join(", ")
+                                          : c.quantity
+                                          ? `كمية: ${c.quantity}`
+                                          : "-";
+                                      return (
+                                        <div
+                                          key={c.color}
+                                          style={{
+                                            whiteSpace: "nowrap",
+                                            border: "1px solid #eee",
+                                            padding: "2px 6px",
+                                            borderRadius: 4,
+                                            background: "#f9f9f9",
+                                            fontSize: 14,
+                                            marginBottom: 4,
+                                          }}
+                                        >
+                                          <strong>{c.color}:</strong> {detail}
+                                        </div>
+                                      );
+                                    })}
+                              </td>
 
-                            <td>{product.date?.toDate ? product.date.toDate().toLocaleDateString("ar-EG") : product.date}</td>
+                              <td>
+                                {product.date?.toDate
+                                  ? product.date
+                                      .toDate()
+                                      .toLocaleDateString("ar-EG")
+                                  : product.date}
+                              </td>
 
-                            {/* خيارات */}
-                            <td className={styles.actions}>
-                              <button onClick={() => handleDelete(product)}><FaRegTrashAlt /></button>
-                              <button onClick={() => handleEdit(product)}><MdOutlineEdit /></button>
-                              <button onClick={() => handlePrintLabel(product)}>🖨️</button>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                              {/* خيارات */}
+                              <td className={styles.actions}>
+                                <button onClick={() => handleDelete(product)}>
+                                  <FaRegTrashAlt />
+                                </button>
+                                <button onClick={() => handleEdit(product)}>
+                                  <MdOutlineEdit />
+                                </button>
+                                <button
+                                  onClick={() => handlePrintLabel(product)}
+                                >
+                                  🖨️
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>
-
-
               </div>
             )}
 
@@ -908,33 +1016,45 @@ const confirmDeleteSelected = async () => {
               <div className={styles.addContainer}>
                 <div className={styles.inputBox}>
                   <div className="inputContainer">
-                    <label><MdDriveFileRenameOutline /></label>
+                    <label>
+                      <MdDriveFileRenameOutline />
+                    </label>
                     <input
                       type="text"
                       placeholder="اسم المنتج"
                       value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, name: e.target.value })
+                      }
                     />
                   </div>
                 </div>
 
                 <div className={styles.inputBox}>
                   <div className="inputContainer">
-                    <label><GiMoneyStack /></label>
+                    <label>
+                      <GiMoneyStack />
+                    </label>
                     <input
                       type="number"
                       placeholder="سعر الشراء"
                       value={form.buyPrice}
-                      onChange={(e) => setForm({ ...form, buyPrice: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, buyPrice: e.target.value })
+                      }
                     />
                   </div>
                   <div className="inputContainer">
-                    <label><GiMoneyStack /></label>
+                    <label>
+                      <GiMoneyStack />
+                    </label>
                     <input
                       type="number"
                       placeholder="سعر البيع"
                       value={form.sellPrice}
-                      onChange={(e) => setForm({ ...form, sellPrice: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, sellPrice: e.target.value })
+                      }
                     />
                   </div>
                   <div className={styles.inputBox}>
@@ -948,7 +1068,6 @@ const confirmDeleteSelected = async () => {
                       />
                     </div>
                   </div>
-
                 </div>
 
                 <div className={styles.inputBox}>
@@ -969,22 +1088,33 @@ const confirmDeleteSelected = async () => {
                 {form.category === "احذية" && (
                   <div className={styles.inputBox}>
                     <div className="inputContainer">
-                      <label><FaRuler /></label>
+                      <label>
+                        <FaRuler />
+                      </label>
                       <select
                         value={form.sizeType}
-                        onChange={(e) => setForm({ ...form, sizeType: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, sizeType: e.target.value })
+                        }
                       >
                         <option value="">اختر نوع المقاس</option>
                         <option value="شبابي">شبابي</option>
                         <option value="رجالي">رجالي</option>
                       </select>
-                      <small className={styles.hint}>لم يتم اختيار الوان بعد</small>
+                      <small className={styles.hint}>
+                        لم يتم اختيار الوان بعد
+                      </small>
                     </div>
                   </div>
                 )}
 
                 <div className={styles.inputBox}>
-                  <button className={styles.manageBtn} onClick={() => openModalForCategory(form.category || 'اكسسوار')}>
+                  <button
+                    className={styles.manageBtn}
+                    onClick={() =>
+                      openModalForCategory(form.category || "اكسسوار")
+                    }
+                  >
                     تحرير الألوان والمقاسات
                   </button>
                 </div>
@@ -995,19 +1125,41 @@ const confirmDeleteSelected = async () => {
                     إجمالي الكمية قبل الإضافة: {computeTempColorsQty()}
                   </div>
 
-                  {colors.length === 0 && <p className={styles.emptyState}>لم يتم اضافة الوان بعد</p>}
+                  {colors.length === 0 && (
+                    <p className={styles.emptyState}>لم يتم اضافة الوان بعد</p>
+                  )}
                   {colors.map((c, idx) => (
                     <div key={idx} className={styles.sizeRow}>
                       <strong>{c.color}</strong>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
-                        {c.sizes && c.sizes.length
-                          ? c.sizes.map((s, si) => (
-                            <div key={si} style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid #e0e0e0', background: '#fff', display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          flexWrap: "wrap",
+                          marginTop: 6,
+                        }}
+                      >
+                        {c.sizes && c.sizes.length ? (
+                          c.sizes.map((s, si) => (
+                            <div
+                              key={si}
+                              style={{
+                                padding: "6px 8px",
+                                borderRadius: 8,
+                                border: "1px solid #e0e0e0",
+                                background: "#fff",
+                                display: "flex",
+                                gap: 8,
+                                alignItems: "center",
+                              }}
+                            >
                               <span>{s.size}</span>
                               <span style={{ fontWeight: 600 }}>{s.qty}</span>
                             </div>
                           ))
-                          : <em style={{ color: '#666' }}>لا توجد مقاسات</em>}
+                        ) : (
+                          <em style={{ color: "#666" }}>لا توجد مقاسات</em>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1016,48 +1168,84 @@ const confirmDeleteSelected = async () => {
                 {form.category === "اكسسوار" && (
                   <div className={styles.inputBox}>
                     <div className="inputContainer">
-                      <label><FaPlus /></label>
+                      <label>
+                        <FaPlus />
+                      </label>
                       <input
                         type="number"
                         placeholder="الكمية"
                         value={form.quantity}
-                        onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, quantity: e.target.value })
+                        }
                       />
                     </div>
                   </div>
                 )}
 
                 {active === "edit" ? (
-                  <button className={styles.addBtn} onClick={handleUpdateProduct}>تحديث المنتج</button>
+                  <button
+                    className={styles.addBtn}
+                    onClick={handleUpdateProduct}
+                  >
+                    تحديث المنتج
+                  </button>
                 ) : (
-                  <button className={styles.addBtn} onClick={handleAddProduct}>اضف المنتج</button>
+                  <button className={styles.addBtn} onClick={handleAddProduct}>
+                    اضف المنتج
+                  </button>
                 )}
               </div>
             )}
 
             {showModal && (
               <div className={styles.modalOverlay} onClick={cancelModal}>
-                <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+                <div
+                  className={styles.modal}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <div className={styles.modalContent}>
                     <div className={styles.modalHeader}>
-                      <h3>اعدادات الألوان والمقاسات — {modalCategory || 'الصنف'}</h3>
-                      <button onClick={cancelModal} className={styles.closeBtn}>✖</button>
+                      <h3>
+                        اعدادات الألوان والمقاسات — {modalCategory || "الصنف"}
+                      </h3>
+                      <button onClick={cancelModal} className={styles.closeBtn}>
+                        ✖
+                      </button>
                     </div>
 
-                    <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
-                      <button onClick={addTempColor} className={styles.smallBtn}>➕ أضف لون</button>
-                      <button onClick={() => {
-                        const sample = ["أبيض", "أسود", "أحمر", "أزرق"];
-                        setTempColors(prev => {
-                          const copy = prev.map(c => ({ color: c.color, sizes: c.sizes.map(s => ({ ...s })) }));
-                          sample.forEach(col => {
-                            if (!copy.find(c => c.color === col)) copy.push({ color: col, sizes: [] });
+                    <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+                      <button
+                        onClick={addTempColor}
+                        className={styles.smallBtn}
+                      >
+                        ➕ أضف لون
+                      </button>
+                      <button
+                        onClick={() => {
+                          const sample = ["أبيض", "أسود", "أحمر", "أزرق"];
+                          setTempColors((prev) => {
+                            const copy = prev.map((c) => ({
+                              color: c.color,
+                              sizes: c.sizes.map((s) => ({ ...s })),
+                            }));
+                            sample.forEach((col) => {
+                              if (!copy.find((c) => c.color === col))
+                                copy.push({ color: col, sizes: [] });
+                            });
+                            return copy;
                           });
-                          return copy;
-                        });
-                      }} className={styles.smallBtn}>أضف ألوان تجريبية</button>
-                      {modalCategory === 'احذية' && (
-                        <select value={modalSizeType} onChange={(e) => setModalSizeType(e.target.value)} style={{ padding: '6px 8px', borderRadius: 8 }}>
+                        }}
+                        className={styles.smallBtn}
+                      >
+                        أضف ألوان تجريبية
+                      </button>
+                      {modalCategory === "احذية" && (
+                        <select
+                          value={modalSizeType}
+                          onChange={(e) => setModalSizeType(e.target.value)}
+                          style={{ padding: "6px 8px", borderRadius: 8 }}
+                        >
                           <option value="">نوع المقاس (اختياري)</option>
                           <option value="شبابي">شبابي</option>
                           <option value="رجالي">رجالي</option>
@@ -1071,120 +1259,255 @@ const confirmDeleteSelected = async () => {
                         <div />
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginTop: 10 }}>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fill, minmax(220px, 1fr))",
+                          gap: 12,
+                          marginTop: 10,
+                        }}
+                      >
                         {tempColors.map((c, ci) => (
                           <div key={ci} className={styles.gridItem}>
-                            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div
+                              style={{
+                                width: "100%",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                              }}
+                            >
                               <div style={{ fontWeight: 700 }}>{c.color}</div>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <button onClick={() => addPresetSizesToColor(ci)} className={styles.smallBtn}>إضافة جاهزة</button>
-                                <button onClick={() => removeTempColor(c.color)} className={`${styles.smallBtn} ${styles.delete}`}>حذف</button>
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <button
+                                  onClick={() => addPresetSizesToColor(ci)}
+                                  className={styles.smallBtn}
+                                >
+                                  إضافة جاهزة
+                                </button>
+                                <button
+                                  onClick={() => removeTempColor(c.color)}
+                                  className={`${styles.smallBtn} ${styles.delete}`}
+                                >
+                                  حذف
+                                </button>
                               </div>
                             </div>
-                            <div style={{ marginTop: 8, width: '100%' }}>
-                              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                                <button onClick={() => addTempSizeToColor(ci)} className={styles.smallBtn}>➕ أضف مقاس لهذا اللون</button>
+                            <div style={{ marginTop: 8, width: "100%" }}>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: 8,
+                                  marginBottom: 8,
+                                }}
+                              >
+                                <button
+                                  onClick={() => addTempSizeToColor(ci)}
+                                  className={styles.smallBtn}
+                                >
+                                  ➕ أضف مقاس لهذا اللون
+                                </button>
                               </div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                {c.sizes && c.sizes.length
-                                  ? c.sizes.map((s, si) => (
-                                    <div key={si} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, border: '1px solid #eee', background: '#fff' }}>
-                                      <div style={{ fontWeight: 600 }}>{s.size}</div>
-                                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                        <button onClick={() => decTempSizeQty(ci, s.size)} className={styles.smallBtn}><FaMinus /></button>
-                                        <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 600 }}>{s.qty}</span>
-                                        <button onClick={() => incTempSizeQty(ci, s.size)} className={styles.smallBtn}><FaPlus /></button>
-                                        <button onClick={() => removeTempSizeFromColor(ci, s.size)} className={`${styles.smallBtn} ${styles.delete}`}><FaTrash /></button>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 8,
+                                }}
+                              >
+                                {c.sizes && c.sizes.length ? (
+                                  c.sizes.map((s, si) => (
+                                    <div
+                                      key={si}
+                                      style={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        padding: "6px 8px",
+                                        borderRadius: 8,
+                                        border: "1px solid #eee",
+                                        background: "#fff",
+                                      }}
+                                    >
+                                      <div style={{ fontWeight: 600 }}>
+                                        {s.size}
+                                      </div>
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          gap: 6,
+                                          alignItems: "center",
+                                        }}
+                                      >
+                                        <button
+                                          onClick={() =>
+                                            decTempSizeQty(ci, s.size)
+                                          }
+                                          className={styles.smallBtn}
+                                        >
+                                          <FaMinus />
+                                        </button>
+                                        <span
+                                          style={{
+                                            minWidth: 24,
+                                            textAlign: "center",
+                                            fontWeight: 600,
+                                          }}
+                                        >
+                                          {s.qty}
+                                        </span>
+                                        <button
+                                          onClick={() =>
+                                            incTempSizeQty(ci, s.size)
+                                          }
+                                          className={styles.smallBtn}
+                                        >
+                                          <FaPlus />
+                                        </button>
+                                        <button
+                                          onClick={() =>
+                                            removeTempSizeFromColor(ci, s.size)
+                                          }
+                                          className={`${styles.smallBtn} ${styles.delete}`}
+                                        >
+                                          <FaTrash />
+                                        </button>
                                       </div>
                                     </div>
                                   ))
-                                  : <div style={{ color: '#777' }}>لا توجد مقاسات لهذا اللون</div>}
+                                ) : (
+                                  <div style={{ color: "#777" }}>
+                                    لا توجد مقاسات لهذا اللون
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
                         ))}
-                        {tempColors.length === 0 && <div className={styles.emptyState}>لم تضف ألوان بعد</div>}
+                        {tempColors.length === 0 && (
+                          <div className={styles.emptyState}>
+                            لم تضف ألوان بعد
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                      <button onClick={cancelModal} className={styles.btnOutline}>إلغاء</button>
-                      <button onClick={saveModal} className={styles.btnPrimary}>حفظ</button>
+                    <div
+                      style={{
+                        marginTop: 12,
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        gap: 8,
+                      }}
+                    >
+                      <button
+                        onClick={cancelModal}
+                        className={styles.btnOutline}
+                      >
+                        إلغاء
+                      </button>
+                      <button onClick={saveModal} className={styles.btnPrimary}>
+                        حفظ
+                      </button>
                     </div>
                   </div>
                 </div>
               </div>
             )}
-
           </>
         )}
         {showDeletePopup && (
-  <div className={styles.modalOverlay} onClick={() => setShowDeletePopup(false)}>
-    <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-      <div className={styles.modalContent}>
-        <div className={styles.modalHeader}>
-          <h3>حذف جزء من المنتج — {deleteTarget?.name}</h3>
-          <button onClick={() => setShowDeletePopup(false)} className={styles.closeBtn}>✖</button>
-        </div>
+          <div
+            className={styles.modalOverlay}
+            onClick={() => setShowDeletePopup(false)}
+          >
+            <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+              <div className={styles.modalContent}>
+                <div className={styles.modalHeader}>
+                  <h3>حذف جزء من المنتج — {deleteTarget?.name}</h3>
+                  <button
+                    onClick={() => setShowDeletePopup(false)}
+                    className={styles.closeBtn}
+                  >
+                    ✖
+                  </button>
+                </div>
 
-        <div className={styles.modalSection}>
-          {deleteForm.map((col, ci) => (
-            <div key={ci} style={{ marginBottom: 20 }}>
-              <h4 style={{ marginBottom: 10 }}>{col.color}</h4>
+                <div className={styles.modalSection}>
+                  {deleteForm.map((col, ci) => (
+                    <div key={ci} style={{ marginBottom: 20 }}>
+                      <h4 style={{ marginBottom: 10 }}>{col.color}</h4>
 
-              {col.sizes.map((sz, si) => (
+                      {col.sizes.map((sz, si) => (
+                        <div
+                          key={si}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "6px 10px",
+                            border: "1px solid #ddd",
+                            borderRadius: 8,
+                            marginBottom: 8,
+                            background: "#fff",
+                          }}
+                        >
+                          <div>
+                            <strong>{sz.size}</strong> — موجود: {sz.qty}
+                          </div>
+
+                          <input
+                            type="number"
+                            min="0"
+                            max={sz.qty}
+                            value={sz.deleteQty}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setDeleteForm((prev) => {
+                                const copy = [...prev];
+                                copy[ci].sizes[si].deleteQty = val;
+                                return copy;
+                              });
+                            }}
+                            style={{
+                              width: 70,
+                              padding: 6,
+                              borderRadius: 6,
+                              border: "1px solid #ccc",
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+
                 <div
-                  key={si}
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "6px 10px",
-                    border: "1px solid #ddd",
-                    borderRadius: 8,
-                    marginBottom: 8,
-                    background: "#fff"
+                    justifyContent: "flex-end",
+                    gap: 10,
                   }}
                 >
-                  <div>
-                    <strong>{sz.size}</strong> — موجود: {sz.qty}
-                  </div>
-
-                  <input
-                    type="number"
-                    min="0"
-                    max={sz.qty}
-                    value={sz.deleteQty}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      setDeleteForm(prev => {
-                        const copy = [...prev];
-                        copy[ci].sizes[si].deleteQty = val;
-                        return copy;
-                      });
-                    }}
-                    style={{
-                      width: 70,
-                      padding: 6,
-                      borderRadius: 6,
-                      border: "1px solid #ccc"
-                    }}
-                  />
+                  <button
+                    onClick={() => setShowDeletePopup(false)}
+                    className={styles.btnOutline}
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    onClick={confirmDeleteSelected}
+                    className={styles.btnPrimary}
+                  >
+                    حذف
+                  </button>
                 </div>
-              ))}
+              </div>
             </div>
-          ))}
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <button onClick={() => setShowDeletePopup(false)} className={styles.btnOutline}>إلغاء</button>
-          <button onClick={confirmDeleteSelected} className={styles.btnPrimary}>حذف</button>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
+          </div>
+        )}
       </div>
     </div>
   );
