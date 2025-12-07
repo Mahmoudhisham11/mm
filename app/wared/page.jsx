@@ -67,11 +67,13 @@ export default function Wared() {
       <div className={styles.content}>
         {/* البحث بالتاريخ */}
         <div className={styles.searchBox}>
-          <input
+          <div className="inputContainer">
+            <input
             type="date"
             value={searchDate}
             onChange={(e) => setSearchDate(e.target.value)}
           />
+          </div>
           <button onClick={filterByDate}>بحث</button>
           <button onClick={() => setFiltered(products)}>عرض الكل</button>
         </div>
