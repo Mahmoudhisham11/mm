@@ -48,6 +48,10 @@ function SideBar({openSideBar, setOpenSideBar}) {
                     <span><HiOutlineWallet/></span>
                     <span>المنتجات</span>
                 </Link>
+                <Link href={'/wared'} className={styles.actionLinks}>
+                    <span><HiOutlineWallet/></span>
+                    <span>الوارد</span>
+                </Link>
                 <Link href={'/masrofat'} className={styles.actionLinks}>
                     <span><TbMoneybag/></span>
                     <span>المصاريف</span>

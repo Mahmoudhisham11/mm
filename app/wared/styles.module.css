@@ -1,0 +1,66 @@
+.wared {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    justify-content: start;
+    align-items: start;
+}
+.content {
+    width: 100%;
+}
+.searchBox {
+    width: 100%;
+}
+.tableContainer {
+  width: 100%;
+  overflow-x: auto; /* scroll أفقي */
+  -webkit-overflow-scrolling: touch; /* smooth scroll على iOS */
+}
+
+.tableContainer table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px; /* عرض أدنى للجدول على الموبايل */
+}
+
+.tableContainer th,
+.tableContainer td {
+  padding: 8px 6px;
+  text-align: left;
+  white-space: nowrap; /* يمنع كسر الكلمات داخل الأعمدة */
+}
+
+@media screen and (max-width: 768px) {
+  .tableContainer table {
+    min-width: 600px; /* يقلل عرض الجدول على شاشات أصغر */
+  }
+
+  .tableContainer th,
+  .tableContainer td {
+    padding: 6px 4px; /* تقليل padding على الموبايل */
+    font-size: 14px; /* تصغير حجم الخط */
+  }
+}
+
+.addContainer {
+    width: 100%;
+    padding: 0 2%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 15px;
+}
+.inputBox {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+}
+
+@media(max-width: 767px) {
+    .inputBox {
+        flex-direction: column;
+    }
+}

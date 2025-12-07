@@ -1090,8 +1090,9 @@ function Main() {
       </tfoot>
     </table>
     <p>عدد الاصناف: ${invoice.cart.length}</p>
-    <p style="text-align:center;margin-top:5px;">شكراً لتعاملكم معنا!</p>
-    <div style="text-align:center;"><strong>تم التوجيه بواسطة: Devoria</strong></div>
+  <p style="text-align:center;margin-top:5px;">البضاعة المباعة لا ترد</p>
+  <p style="text-align:center;margin-top:5px;">ولكن تستبدل خلال ثلاث ايام</p>
+  <div style="text-align:center;"><strong>تم التوجيه بواسطة: Devoria</strong></div>
   </div>
 
   <script>
@@ -1200,7 +1201,8 @@ function Main() {
       </tfoot>
     </table>
     <p>عدد الاصناف: ${invoice.cart.length}</p>
-    <p style="text-align:center;margin-top:5px;">شكراً لتعاملكم معنا!</p>
+    <p style="text-align:center;margin-top:5px;">البضاعة المباعة لا ترد</p>
+    <p style="text-align:center;margin-top:5px;">ولكن تستبدل خلال ثلاث ايام</p>
     <div style="text-align:center;"><strong>تم التوجيه بواسطة: Devoria</strong></div>
   </div>
 
@@ -1389,20 +1391,19 @@ function Main() {
     (sum, i) => sum + (i.total || 0),
     0
   );
-const finalProfit = filteredInvoices.reduce((sum, i) => {
-  if (typeof i.profit === "number") return sum + i.profit;
+  const finalProfit = filteredInvoices.reduce((sum, i) => {
+    if (typeof i.profit === "number") return sum + i.profit;
 
-  // لو الفاتورة قديمة ومفيهاش profit نحسبه دلوقتي
-  const calculatedProfit = (i.cart || []).reduce(
-    (p, item) =>
-      p +
-      ((item.sellPrice || 0) - (item.buyPrice || 0)) *
-        (item.quantity || 0),
-    0
-  );
+    // لو الفاتورة قديمة ومفيهاش profit نحسبه دلوقتي
+    const calculatedProfit = (i.cart || []).reduce(
+      (p, item) =>
+        p +
+        ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0),
+      0
+    );
 
-  return sum + calculatedProfit;
-}, 0);
+    return sum + calculatedProfit;
+  }, 0);
 
   const finallyTotal = Number(totalSales) - Number(totalMasrofat);
 

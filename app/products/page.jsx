@@ -285,6 +285,7 @@ function Products() {
     };
 
     await addDoc(collection(db, "lacosteProducts"), productObj);
+    await addDoc(collection(db, "wared"), productObj);
 
     alert("✅ تم إضافة المنتج بنجاح");
 
