@@ -19,6 +19,7 @@ import { db } from "@/app/firebase";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { useRouter } from "next/navigation";
+import Loader from "@/components/Loader/Loader";
 
 function Reports() {
   const router = useRouter();
@@ -689,7 +690,7 @@ function Reports() {
     }
   };
 
-  if (loading) return <p>🔄 جاري التحقق...</p>;
+  if (loading) return <Loader />;
   if (!auth) return null;
 
   return (

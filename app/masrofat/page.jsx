@@ -1,13 +1,23 @@
-'use client';
+"use client";
 import SideBar from "@/components/SideBar/page";
 import styles from "./styles.module.css";
 import { useEffect, useState } from "react";
 import { FaTrashAlt } from "react-icons/fa";
-import { addDoc, collection, deleteDoc, doc, onSnapshot, getDocs, query, where } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
 import { db } from "@/app/firebase";
 import { GiReceiveMoney } from "react-icons/gi";
 import { FaQuestion } from "react-icons/fa";
 import { useRouter } from "next/navigation";
+import Loader from "@/components/Loader/Loader";
 
 function Masrofat() {
   const router = useRouter();
@@ -29,7 +39,10 @@ function Masrofat() {
         router.push("/");
         return;
       }
-      const q = query(collection(db, "users"), where("userName", "==", userName));
+      const q = query(
+        collection(db, "users"),
+        where("userName", "==", userName)
+      );
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
         const user = querySnapshot.docs[0].data();
@@ -55,9 +68,15 @@ function Masrofat() {
       const storageShop = localStorage.getItem("shop");
       setShop(storageShop);
 
-      const q = query(collection(db, "masrofat"), where("shop", "==", storageShop));
+      const q = query(
+        collection(db, "masrofat"),
+        where("shop", "==", storageShop)
+      );
       const unsub = onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
         setMasrofatList(data);
       });
 
@@ -71,7 +90,10 @@ function Masrofat() {
 
     const getTodaySales = async () => {
       try {
-        const q = query(collection(db, "dailySales"), where("shop", "==", shop));
+        const q = query(
+          collection(db, "dailySales"),
+          where("shop", "==", shop)
+        );
         const querySnapshot = await getDocs(q);
         let total = 0;
         querySnapshot.forEach((doc) => {
@@ -88,60 +110,68 @@ function Masrofat() {
   }, [shop, masrofatList]);
 
   // إضافة مصروف جديد
-const handleAddMasrof = async () => {
-  if (!masrof || !reason) {
-    alert("يرجى ملء كل الحقول");
-    return;
-  }
+  const handleAddMasrof = async () => {
+    if (!masrof || !reason) {
+      alert("يرجى ملء كل الحقول");
+      return;
+    }
 
-  const masrofValue = Number(masrof);
+    const masrofValue = Number(masrof);
 
-  const totalMasrofToday = masrofatList.reduce((acc, item) => acc + Number(item.masrof || 0), 0);
-  const availableAmount = dailySales - (editingMasrof ? totalMasrofToday - Number(editingMasrof.masrof) : totalMasrofToday);
+    const totalMasrofToday = masrofatList.reduce(
+      (acc, item) => acc + Number(item.masrof || 0),
+      0
+    );
+    const availableAmount =
+      dailySales -
+      (editingMasrof
+        ? totalMasrofToday - Number(editingMasrof.masrof)
+        : totalMasrofToday);
 
-  if (masrofValue > availableAmount) {
-    alert(`❌ الرصيد الحالي غير كافٍ لإضافة هذا المصروف.
+    if (masrofValue > availableAmount) {
+      alert(`❌ الرصيد الحالي غير كافٍ لإضافة هذا المصروف.
     
 الرصيد المتاح: ${availableAmount}
 المبلغ المطلوب: ${masrofValue}`);
-    return;
-  }
-
-  const now = new Date();
-  const formattedDate = `${now.getDate().toString().padStart(2, "0")}/${(now.getMonth() + 1)
-    .toString()
-    .padStart(2, "0")}/${now.getFullYear()}`;
-
-  try {
-    if (editingMasrof) {
-      // تعديل المصروف الموجود
-      await addDoc(collection(db, "masrofat"), {
-        masrof: masrofValue,
-        reason,
-        date: formattedDate,
-        shop,
-      });
-      // تحديث المستند الحالي
-      await deleteDoc(doc(db, "masrofat", editingMasrof.id));
-      setEditingMasrof(null);
-    } else {
-      // إضافة مصروف جديد
-      await addDoc(collection(db, "masrofat"), {
-        masrof: masrofValue,
-        reason,
-        date: formattedDate,
-        shop,
-      });
+      return;
     }
 
-    setMasrof("");
-    setReason("");
-    setActive(false);
-  } catch (error) {
-    console.error("خطأ أثناء الإضافة/التعديل:", error);
-  }
-};
+    const now = new Date();
+    const formattedDate = `${now.getDate().toString().padStart(2, "0")}/${(
+      now.getMonth() + 1
+    )
+      .toString()
+      .padStart(2, "0")}/${now.getFullYear()}`;
 
+    try {
+      if (editingMasrof) {
+        // تعديل المصروف الموجود
+        await addDoc(collection(db, "masrofat"), {
+          masrof: masrofValue,
+          reason,
+          date: formattedDate,
+          shop,
+        });
+        // تحديث المستند الحالي
+        await deleteDoc(doc(db, "masrofat", editingMasrof.id));
+        setEditingMasrof(null);
+      } else {
+        // إضافة مصروف جديد
+        await addDoc(collection(db, "masrofat"), {
+          masrof: masrofValue,
+          reason,
+          date: formattedDate,
+          shop,
+        });
+      }
+
+      setMasrof("");
+      setReason("");
+      setActive(false);
+    } catch (error) {
+      console.error("خطأ أثناء الإضافة/التعديل:", error);
+    }
+  };
 
   // حذف مصروف واحد
   const handleDelete = async (id) => {
@@ -153,10 +183,13 @@ const handleAddMasrof = async () => {
   };
 
   // حساب إجمالي المصروفات
-  const totalMasrof = masrofatList.reduce((acc, item) => acc + Number(item.masrof || 0), 0);
+  const totalMasrof = masrofatList.reduce(
+    (acc, item) => acc + Number(item.masrof || 0),
+    0
+  );
   const totalAvailable = dailySales - totalMasrof;
 
-  if (loading) return <p>🔄 جاري التحقق...</p>;
+  if (loading) return <Loader />;
   if (!auth) return null;
 
   return (
@@ -173,7 +206,10 @@ const handleAddMasrof = async () => {
         </div>
 
         {/* جدول المصروفات */}
-        <div className={styles.masrofatContent} style={{ display: active ? "none" : "flex" }}>
+        <div
+          className={styles.masrofatContent}
+          style={{ display: active ? "none" : "flex" }}
+        >
           <div className={styles.tableContainer}>
             <table>
               <thead>
@@ -191,13 +227,21 @@ const handleAddMasrof = async () => {
                     <td>{item.reason}</td>
                     <td>{item.date}</td>
                     <td className={styles.actions}>
-                      <button className={styles.editBtn} onClick={() => {
-                        setEditingMasrof(item);
-                        setMasrof(item.masrof);
-                        setReason(item.reason);
-                        setActive(true);
-                      }}>✏️</button>
-                      <button className={styles.delBtn} onClick={() => handleDelete(item.id)}>
+                      <button
+                        className={styles.editBtn}
+                        onClick={() => {
+                          setEditingMasrof(item);
+                          setMasrof(item.masrof);
+                          setReason(item.reason);
+                          setActive(true);
+                        }}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        className={styles.delBtn}
+                        onClick={() => handleDelete(item.id)}
+                      >
                         <FaTrashAlt />
                       </button>
                     </td>
@@ -209,19 +253,33 @@ const handleAddMasrof = async () => {
         </div>
 
         {/* إضافة مصروف جديد */}
-        <div className={styles.addMasrofat} style={{ display: active ? "flex" : "none" }}>
+        <div
+          className={styles.addMasrofat}
+          style={{ display: active ? "flex" : "none" }}
+        >
           <div className="inputContainer">
-            <label><GiReceiveMoney /></label>
-            <input type="number" value={masrof} onChange={(e) => setMasrof(e.target.value)} />
+            <label>
+              <GiReceiveMoney />
+            </label>
+            <input
+              type="number"
+              value={masrof}
+              onChange={(e) => setMasrof(e.target.value)}
+            />
           </div>
           <div className="inputContainer">
-            <label><FaQuestion /></label>
-            <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} />
+            <label>
+              <FaQuestion />
+            </label>
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
           </div>
           <button className={styles.addBtn} onClick={handleAddMasrof}>
             {editingMasrof ? "تعديل المصروف" : "اضف المصروف"}
           </button>
-
         </div>
       </div>
     </div>

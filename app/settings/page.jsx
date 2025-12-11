@@ -1,11 +1,20 @@
-'use client';
+"use client";
 import { useState, useEffect } from "react";
 import SideBar from "@/components/SideBar/page";
 import styles from "./styles.module.css";
-import { collection, getDocs, doc, updateDoc, getDoc, query, where } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  doc,
+  updateDoc,
+  getDoc,
+  query,
+  where,
+} from "firebase/firestore";
 import { db } from "../firebase";
 import { VscPercentage } from "react-icons/vsc";
 import { useRouter } from "next/navigation";
+import Loader from "@/components/Loader/Loader";
 
 export default function Settings() {
   const router = useRouter();
@@ -38,7 +47,10 @@ export default function Settings() {
       }
       setCurrentUserName(userName); // ✅ حفظ اسم المستخدم الحالي
 
-      const q = query(collection(db, "users"), where("userName", "==", userName));
+      const q = query(
+        collection(db, "users"),
+        where("userName", "==", userName)
+      );
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
         const user = querySnapshot.docs[0].data();
@@ -67,7 +79,9 @@ export default function Settings() {
     }));
 
     // استبعاد المستخدم اللي اسمه نفس الموجود في localStorage
-    const filteredUsers = allUsers.filter(u => u.userName !== currentUserName);
+    const filteredUsers = allUsers.filter(
+      (u) => u.userName !== currentUserName
+    );
 
     setUsers(filteredUsers);
   };
@@ -207,7 +221,7 @@ export default function Settings() {
     }
   }, [selectedUser, activeTab]);
 
-  if (loading) return <p>🔄 جاري التحقق...</p>;
+  if (loading) return <Loader />;
   if (!auth) return null;
 
   return (
@@ -278,7 +292,10 @@ export default function Settings() {
                   ))}
                 </div>
               </div>
-              <button className={styles.saveBtn} onClick={handleSavePermissions}>
+              <button
+                className={styles.saveBtn}
+                onClick={handleSavePermissions}
+              >
                 حفظ
               </button>
             </div>
@@ -359,7 +376,10 @@ export default function Settings() {
                       </div>
                     </div>
 
-                    <div className="inputContainer" style={{ marginTop: "15px" }}>
+                    <div
+                      className="inputContainer"
+                      style={{ marginTop: "15px" }}
+                    >
                       <label>
                         <VscPercentage />
                       </label>

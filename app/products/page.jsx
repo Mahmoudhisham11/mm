@@ -24,6 +24,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
+import Loader from "@/components/Loader/Loader";
 
 function Products() {
   const [auth, setAuth] = useState(false);
@@ -811,6 +812,9 @@ function Products() {
     }
   };
 
+  if (loading) return <Loader />;
+  if (!auth) return null;
+
   return (
     <div className={styles.products}>
       <SideBar />
@@ -833,591 +837,556 @@ function Products() {
             اضف منتج جديد
           </button>
         </div>
-
-        {loading ? (
-          <p>🔄 جاري التحقق...</p>
-        ) : !auth ? null : (
-          <>
-            {!active && (
-              <div className={styles.phoneContainer}>
-                <div className={styles.searchBox}>
-                  <div className="inputContainer">
-                    <label>
-                      <CiSearch />
-                    </label>
-                    <input
-                      type="text"
-                      list="codesList"
-                      placeholder=" ابحث بالكود"
-                      value={searchCode}
-                      onChange={(e) => setSearchCode(e.target.value)}
-                    />
-                    <datalist id="codesList">
-                      {products.map((p) => (
-                        <option key={p.id} value={p.code} />
-                      ))}
-                    </datalist>
-                  </div>
-                  <div className="inputContainer" style={{ marginTop: "15px" }}>
-                    <input
-                      type="date"
-                      value={searchDate}
-                      onChange={(e) => setSearchDate(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className={styles.totals}>
-                  <p>اجمالي الشراء: {totalBuy} EGP</p>
-                  <p>اجمالي البيع: {totalSell} EGP</p>
-                  <p>اجمالي النهائي: {finaltotal} EGP</p>
-                  <p>اجمالي المنتجات: {totalProducts} </p>
-                </div>
-                <div className={styles.tableContainer}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>الكود</th>
-                        <th>الاسم</th>
-                        <th>سعر الشراء</th>
-                        <th>سعر البيع</th>
-                        <th>السعر النهائي</th>
-                        <th>الكمية</th>
-                        <th>الألوان (الكمية)</th>
-                        <th>تفصيل المقاسات</th>
-                        <th>التاريخ</th>
-                        <th>خيارات</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...filteredProducts]
-                        .sort((a, b) => Number(a.code) - Number(b.code)) // ⭐ ترتيب المنتجات حسب الكود
-                        .map((product) => {
-                          const colorsList = product.colors || [];
-                          let totalQ = 0;
-
-                          // حساب الكمية الإجمالية لكل المنتج
-                          colorsList.forEach((c) => {
-                            const colorTotal =
-                              c.sizes && c.sizes.length
-                                ? c.sizes.reduce(
-                                    (s, it) => s + Number(it.qty || 0),
-                                    0
-                                  )
-                                : c.quantity || 0;
-                            totalQ += colorTotal;
-                          });
-
-                          return (
-                            <tr key={product.id}>
-                              <td>{product.code}</td>
-                              <td>{product.name || "-"}</td>
-                              <td>{product.buyPrice || 0} EGP</td>
-                              <td>{product.sellPrice || 0} EGP</td>
-                              <td>{product.finalPrice} EGP</td>
-                              <td>{totalQ || product.quantity || 0}</td>
-
-                              {/* خلية الألوان مع الكمية */}
-                              <td style={{ maxWidth: 150 }}>
-                                {colorsList.length === 0
-                                  ? "-"
-                                  : colorsList.map((c) => {
-                                      const colorTotal =
-                                        c.sizes && c.sizes.length
-                                          ? c.sizes.reduce(
-                                              (s, it) =>
-                                                s + Number(it.qty || 0),
-                                              0
-                                            )
-                                          : c.quantity || 0;
-                                      return (
-                                        <div
-                                          key={c.color}
-                                          style={{
-                                            whiteSpace: "nowrap",
-                                            border: "1px solid #eee",
-                                            padding: "2px 6px",
-                                            borderRadius: 4,
-                                            background: "#f9f9f9",
-                                            fontSize: 14,
-                                            marginBottom: 4,
-                                          }}
-                                        >
-                                          <strong>{c.color}:</strong>{" "}
-                                          {colorTotal}
-                                        </div>
-                                      );
-                                    })}
-                              </td>
-
-                              {/* خلية تفصيل المقاسات */}
-                              <td style={{ maxWidth: 300 }}>
-                                {colorsList.length === 0
-                                  ? "-"
-                                  : colorsList.map((c) => {
-                                      const detail =
-                                        c.sizes && c.sizes.length
-                                          ? c.sizes
-                                              .map((s) => `${s.size}(${s.qty})`)
-                                              .join(", ")
-                                          : c.quantity
-                                          ? `كمية: ${c.quantity}`
-                                          : "-";
-                                      return (
-                                        <div
-                                          key={c.color}
-                                          style={{
-                                            whiteSpace: "nowrap",
-                                            border: "1px solid #eee",
-                                            padding: "2px 6px",
-                                            borderRadius: 4,
-                                            background: "#f9f9f9",
-                                            fontSize: 14,
-                                            marginBottom: 4,
-                                          }}
-                                        >
-                                          <strong>{c.color}:</strong> {detail}
-                                        </div>
-                                      );
-                                    })}
-                              </td>
-
-                              <td>
-                                {product.date?.toDate
-                                  ? product.date
-                                      .toDate()
-                                      .toLocaleDateString("ar-EG")
-                                  : product.date}
-                              </td>
-
-                              {/* خيارات */}
-                              <td className={styles.actions}>
-                                <button onClick={() => handleDelete(product)}>
-                                  <FaRegTrashAlt />
-                                </button>
-                                <button onClick={() => handleEdit(product)}>
-                                  <MdOutlineEdit />
-                                </button>
-                                <button
-                                  onClick={() => handlePrintLabel(product)}
-                                >
-                                  🖨️
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {(active === true || active === "edit") && (
-              <div className={styles.addContainer}>
-                <div className={styles.inputBox}>
-                  <div className="inputContainer">
-                    <label>
-                      <MdDriveFileRenameOutline />
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="اسم المنتج"
-                      value={form.name}
-                      onChange={(e) =>
-                        setForm({ ...form, name: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className={styles.inputBox}>
-                  <div className="inputContainer">
-                    <label>
-                      <GiMoneyStack />
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="سعر الشراء"
-                      value={form.buyPrice}
-                      onChange={(e) =>
-                        setForm({ ...form, buyPrice: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="inputContainer">
-                    <label>
-                      <GiMoneyStack />
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="سعر البيع"
-                      value={form.sellPrice}
-                      onChange={(e) =>
-                        setForm({ ...form, sellPrice: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className={styles.inputBox}>
-                    <div className="inputContainer">
-                      <label>السعر النهائي</label>
-                      <input
-                        type="number"
-                        placeholder="ادخل السعر النهائي"
-                        value={finalPrice}
-                        onChange={(e) => setFinalPrice(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className={styles.inputBox}>
-                  <div className="inputContainer">
-                    <label>الصنف</label>
-                    <select
-                      value={form.category}
-                      onChange={(e) => handleCategorySelect(e.target.value)}
-                    >
-                      <option value="">اختر الصنف</option>
-                      <option value="احذية">احذية</option>
-                      <option value="هدوم">هدوم</option>
-                      <option value="اكسسوار">اكسسوار</option>
-                    </select>
-                  </div>
-                </div>
-
-                {form.category === "احذية" && (
-                  <div className={styles.inputBox}>
-                    <div className="inputContainer">
-                      <label>
-                        <FaRuler />
-                      </label>
-                      <select
-                        value={form.sizeType}
-                        onChange={(e) =>
-                          setForm({ ...form, sizeType: e.target.value })
-                        }
-                      >
-                        <option value="">اختر نوع المقاس</option>
-                        <option value="شبابي">شبابي</option>
-                        <option value="رجالي">رجالي</option>
-                      </select>
-                      <small className={styles.hint}>
-                        لم يتم اختيار الوان بعد
-                      </small>
-                    </div>
-                  </div>
-                )}
-
-                <div className={styles.inputBox}>
-                  <button
-                    className={styles.manageBtn}
-                    onClick={() =>
-                      openModalForCategory(form.category || "اكسسوار")
-                    }
-                  >
-                    تحرير الألوان والمقاسات
-                  </button>
-                </div>
-
-                <div className={styles.colorsBox}>
-                  <h4>تفاصيل الألوان والمقاسات</h4>
-                  <div style={{ marginBottom: 10, fontWeight: 600 }}>
-                    إجمالي الكمية قبل الإضافة: {computeTempColorsQty()}
-                  </div>
-
-                  {colors.length === 0 && (
-                    <p className={styles.emptyState}>لم يتم اضافة الوان بعد</p>
-                  )}
-                  {colors.map((c, idx) => (
-                    <div key={idx} className={styles.sizeRow}>
-                      <strong>{c.color}</strong>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 8,
-                          flexWrap: "wrap",
-                          marginTop: 6,
-                        }}
-                      >
-                        {c.sizes && c.sizes.length ? (
-                          c.sizes.map((s, si) => (
-                            <div
-                              key={si}
-                              style={{
-                                padding: "6px 8px",
-                                borderRadius: 8,
-                                border: "1px solid #e0e0e0",
-                                background: "#fff",
-                                display: "flex",
-                                gap: 8,
-                                alignItems: "center",
-                              }}
-                            >
-                              <span>{s.size}</span>
-                              <span style={{ fontWeight: 600 }}>{s.qty}</span>
-                            </div>
-                          ))
-                        ) : (
-                          <em style={{ color: "#666" }}>لا توجد مقاسات</em>
-                        )}
-                      </div>
-                    </div>
+        {!active && (
+          <div className={styles.phoneContainer}>
+            <div className={styles.searchBox}>
+              <div className="inputContainer">
+                <label>
+                  <CiSearch />
+                </label>
+                <input
+                  type="text"
+                  list="codesList"
+                  placeholder=" ابحث بالكود"
+                  value={searchCode}
+                  onChange={(e) => setSearchCode(e.target.value)}
+                />
+                <datalist id="codesList">
+                  {products.map((p) => (
+                    <option key={p.id} value={p.code} />
                   ))}
-                </div>
-
-                {form.category === "اكسسوار" && (
-                  <div className={styles.inputBox}>
-                    <div className="inputContainer">
-                      <label>
-                        <FaPlus />
-                      </label>
-                      <input
-                        type="number"
-                        placeholder="الكمية"
-                        value={form.quantity}
-                        onChange={(e) =>
-                          setForm({ ...form, quantity: e.target.value })
-                        }
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {active === "edit" ? (
-                  <button
-                    className={styles.addBtn}
-                    onClick={handleUpdateProduct}
-                  >
-                    تحديث المنتج
-                  </button>
-                ) : (
-                  <button className={styles.addBtn} onClick={handleAddProduct}>
-                    اضف المنتج
-                  </button>
-                )}
+                </datalist>
               </div>
-            )}
+              <div className="inputContainer" style={{ marginTop: "15px" }}>
+                <input
+                  type="date"
+                  value={searchDate}
+                  onChange={(e) => setSearchDate(e.target.value)}
+                />
+              </div>
+            </div>
 
-            {showModal && (
-              <div className={styles.modalOverlay} onClick={cancelModal}>
-                <div
-                  className={styles.modal}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className={styles.modalContent}>
-                    <div className={styles.modalHeader}>
-                      <h3>
-                        اعدادات الألوان والمقاسات — {modalCategory || "الصنف"}
-                      </h3>
-                      <button onClick={cancelModal} className={styles.closeBtn}>
-                        ✖
-                      </button>
-                    </div>
+            <div className={styles.totals}>
+              <p>اجمالي الشراء: {totalBuy} EGP</p>
+              <p>اجمالي البيع: {totalSell} EGP</p>
+              <p>اجمالي النهائي: {finaltotal} EGP</p>
+              <p>اجمالي المنتجات: {totalProducts} </p>
+            </div>
+            <div className={styles.tableContainer}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>الكود</th>
+                    <th>الاسم</th>
+                    <th>سعر الشراء</th>
+                    <th>سعر البيع</th>
+                    <th>السعر النهائي</th>
+                    <th>الكمية</th>
+                    <th>الألوان (الكمية)</th>
+                    <th>تفصيل المقاسات</th>
+                    <th>التاريخ</th>
+                    <th>خيارات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...filteredProducts]
+                    .sort((a, b) => Number(a.code) - Number(b.code)) // ⭐ ترتيب المنتجات حسب الكود
+                    .map((product) => {
+                      const colorsList = product.colors || [];
+                      let totalQ = 0;
 
-                    <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
-                      <button
-                        onClick={addTempColor}
-                        className={styles.smallBtn}
-                      >
-                        ➕ أضف لون
-                      </button>
-                      <button
-                        onClick={() => {
-                          const sample = ["أبيض", "أسود", "أحمر", "أزرق"];
-                          setTempColors((prev) => {
-                            const copy = prev.map((c) => ({
-                              color: c.color,
-                              sizes: c.sizes.map((s) => ({ ...s })),
-                            }));
-                            sample.forEach((col) => {
-                              if (!copy.find((c) => c.color === col))
-                                copy.push({ color: col, sizes: [] });
-                            });
-                            return copy;
-                          });
-                        }}
-                        className={styles.smallBtn}
-                      >
-                        أضف ألوان تجريبية
-                      </button>
-                      {modalCategory === "احذية" && (
-                        <select
-                          value={modalSizeType}
-                          onChange={(e) => setModalSizeType(e.target.value)}
-                          style={{ padding: "6px 8px", borderRadius: 8 }}
-                        >
-                          <option value="">نوع المقاس (اختياري)</option>
-                          <option value="شبابي">شبابي</option>
-                          <option value="رجالي">رجالي</option>
-                        </select>
-                      )}
-                    </div>
+                      // حساب الكمية الإجمالية لكل المنتج
+                      colorsList.forEach((c) => {
+                        const colorTotal =
+                          c.sizes && c.sizes.length
+                            ? c.sizes.reduce(
+                                (s, it) => s + Number(it.qty || 0),
+                                0
+                              )
+                            : c.quantity || 0;
+                        totalQ += colorTotal;
+                      });
 
-                    <div className={styles.modalSection}>
-                      <div className={styles.sectionHeader}>
-                        <h4>الألوان المضافة</h4>
-                        <div />
-                      </div>
+                      return (
+                        <tr key={product.id}>
+                          <td>{product.code}</td>
+                          <td>{product.name || "-"}</td>
+                          <td>{product.buyPrice || 0} EGP</td>
+                          <td>{product.sellPrice || 0} EGP</td>
+                          <td>{product.finalPrice} EGP</td>
+                          <td>{totalQ || product.quantity || 0}</td>
 
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns:
-                            "repeat(auto-fill, minmax(220px, 1fr))",
-                          gap: 12,
-                          marginTop: 10,
-                        }}
-                      >
-                        {tempColors.map((c, ci) => (
-                          <div key={ci} className={styles.gridItem}>
-                            <div
-                              style={{
-                                width: "100%",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                              }}
-                            >
-                              <div style={{ fontWeight: 700 }}>{c.color}</div>
-                              <div style={{ display: "flex", gap: 6 }}>
-                                <button
-                                  onClick={() => addPresetSizesToColor(ci)}
-                                  className={styles.smallBtn}
-                                >
-                                  إضافة جاهزة
-                                </button>
-                                <button
-                                  onClick={() => removeTempColor(c.color)}
-                                  className={`${styles.smallBtn} ${styles.delete}`}
-                                >
-                                  حذف
-                                </button>
-                              </div>
-                            </div>
-                            <div style={{ marginTop: 8, width: "100%" }}>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  gap: 8,
-                                  marginBottom: 8,
-                                }}
-                              >
-                                <button
-                                  onClick={() => addTempSizeToColor(ci)}
-                                  className={styles.smallBtn}
-                                >
-                                  ➕ أضف مقاس لهذا اللون
-                                </button>
-                              </div>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: 8,
-                                }}
-                              >
-                                {c.sizes && c.sizes.length ? (
-                                  c.sizes.map((s, si) => (
+                          {/* خلية الألوان مع الكمية */}
+                          <td style={{ maxWidth: 150 }}>
+                            {colorsList.length === 0
+                              ? "-"
+                              : colorsList.map((c) => {
+                                  const colorTotal =
+                                    c.sizes && c.sizes.length
+                                      ? c.sizes.reduce(
+                                          (s, it) => s + Number(it.qty || 0),
+                                          0
+                                        )
+                                      : c.quantity || 0;
+                                  return (
                                     <div
-                                      key={si}
+                                      key={c.color}
                                       style={{
-                                        display: "flex",
-                                        justifyContent: "space-between",
-                                        alignItems: "center",
-                                        gap: 8,
-                                        padding: "6px 8px",
-                                        borderRadius: 8,
+                                        whiteSpace: "nowrap",
                                         border: "1px solid #eee",
-                                        background: "#fff",
+                                        padding: "2px 6px",
+                                        borderRadius: 4,
+                                        background: "#f9f9f9",
+                                        fontSize: 14,
+                                        marginBottom: 4,
                                       }}
                                     >
-                                      <div style={{ fontWeight: 600 }}>
-                                        {s.size}
-                                      </div>
-                                      <div
-                                        style={{
-                                          display: "flex",
-                                          gap: 6,
-                                          alignItems: "center",
-                                        }}
-                                      >
-                                        <button
-                                          onClick={() =>
-                                            decTempSizeQty(ci, s.size)
-                                          }
-                                          className={styles.smallBtn}
-                                        >
-                                          <FaMinus />
-                                        </button>
-                                        <span
-                                          style={{
-                                            minWidth: 24,
-                                            textAlign: "center",
-                                            fontWeight: 600,
-                                          }}
-                                        >
-                                          {s.qty}
-                                        </span>
-                                        <button
-                                          onClick={() =>
-                                            incTempSizeQty(ci, s.size)
-                                          }
-                                          className={styles.smallBtn}
-                                        >
-                                          <FaPlus />
-                                        </button>
-                                        <button
-                                          onClick={() =>
-                                            removeTempSizeFromColor(ci, s.size)
-                                          }
-                                          className={`${styles.smallBtn} ${styles.delete}`}
-                                        >
-                                          <FaTrash />
-                                        </button>
-                                      </div>
+                                      <strong>{c.color}:</strong> {colorTotal}
                                     </div>
-                                  ))
-                                ) : (
-                                  <div style={{ color: "#777" }}>
-                                    لا توجد مقاسات لهذا اللون
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                        {tempColors.length === 0 && (
-                          <div className={styles.emptyState}>
-                            لم تضف ألوان بعد
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                                  );
+                                })}
+                          </td>
 
-                    <div
-                      style={{
-                        marginTop: 12,
-                        display: "flex",
-                        justifyContent: "flex-end",
-                        gap: 8,
-                      }}
-                    >
-                      <button
-                        onClick={cancelModal}
-                        className={styles.btnOutline}
-                      >
-                        إلغاء
-                      </button>
-                      <button onClick={saveModal} className={styles.btnPrimary}>
-                        حفظ
-                      </button>
-                    </div>
-                  </div>
+                          {/* خلية تفصيل المقاسات */}
+                          <td style={{ maxWidth: 300 }}>
+                            {colorsList.length === 0
+                              ? "-"
+                              : colorsList.map((c) => {
+                                  const detail =
+                                    c.sizes && c.sizes.length
+                                      ? c.sizes
+                                          .map((s) => `${s.size}(${s.qty})`)
+                                          .join(", ")
+                                      : c.quantity
+                                      ? `كمية: ${c.quantity}`
+                                      : "-";
+                                  return (
+                                    <div
+                                      key={c.color}
+                                      style={{
+                                        whiteSpace: "nowrap",
+                                        border: "1px solid #eee",
+                                        padding: "2px 6px",
+                                        borderRadius: 4,
+                                        background: "#f9f9f9",
+                                        fontSize: 14,
+                                        marginBottom: 4,
+                                      }}
+                                    >
+                                      <strong>{c.color}:</strong> {detail}
+                                    </div>
+                                  );
+                                })}
+                          </td>
+
+                          <td>
+                            {product.date?.toDate
+                              ? product.date
+                                  .toDate()
+                                  .toLocaleDateString("ar-EG")
+                              : product.date}
+                          </td>
+
+                          {/* خيارات */}
+                          <td className={styles.actions}>
+                            <button onClick={() => handleDelete(product)}>
+                              <FaRegTrashAlt />
+                            </button>
+                            <button onClick={() => handleEdit(product)}>
+                              <MdOutlineEdit />
+                            </button>
+                            <button onClick={() => handlePrintLabel(product)}>
+                              🖨️
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {(active === true || active === "edit") && (
+          <div className={styles.addContainer}>
+            <div className={styles.inputBox}>
+              <div className="inputContainer">
+                <label>
+                  <MdDriveFileRenameOutline />
+                </label>
+                <input
+                  type="text"
+                  placeholder="اسم المنتج"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className={styles.inputBox}>
+              <div className="inputContainer">
+                <label>
+                  <GiMoneyStack />
+                </label>
+                <input
+                  type="number"
+                  placeholder="سعر الشراء"
+                  value={form.buyPrice}
+                  onChange={(e) =>
+                    setForm({ ...form, buyPrice: e.target.value })
+                  }
+                />
+              </div>
+              <div className="inputContainer">
+                <label>
+                  <GiMoneyStack />
+                </label>
+                <input
+                  type="number"
+                  placeholder="سعر البيع"
+                  value={form.sellPrice}
+                  onChange={(e) =>
+                    setForm({ ...form, sellPrice: e.target.value })
+                  }
+                />
+              </div>
+              <div className={styles.inputBox}>
+                <div className="inputContainer">
+                  <label>السعر النهائي</label>
+                  <input
+                    type="number"
+                    placeholder="ادخل السعر النهائي"
+                    value={finalPrice}
+                    onChange={(e) => setFinalPrice(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.inputBox}>
+              <div className="inputContainer">
+                <label>الصنف</label>
+                <select
+                  value={form.category}
+                  onChange={(e) => handleCategorySelect(e.target.value)}
+                >
+                  <option value="">اختر الصنف</option>
+                  <option value="احذية">احذية</option>
+                  <option value="هدوم">هدوم</option>
+                  <option value="اكسسوار">اكسسوار</option>
+                </select>
+              </div>
+            </div>
+
+            {form.category === "احذية" && (
+              <div className={styles.inputBox}>
+                <div className="inputContainer">
+                  <label>
+                    <FaRuler />
+                  </label>
+                  <select
+                    value={form.sizeType}
+                    onChange={(e) =>
+                      setForm({ ...form, sizeType: e.target.value })
+                    }
+                  >
+                    <option value="">اختر نوع المقاس</option>
+                    <option value="شبابي">شبابي</option>
+                    <option value="رجالي">رجالي</option>
+                  </select>
+                  <small className={styles.hint}>لم يتم اختيار الوان بعد</small>
                 </div>
               </div>
             )}
-          </>
+
+            <div className={styles.inputBox}>
+              <button
+                className={styles.manageBtn}
+                onClick={() => openModalForCategory(form.category || "اكسسوار")}
+              >
+                تحرير الألوان والمقاسات
+              </button>
+            </div>
+
+            <div className={styles.colorsBox}>
+              <h4>تفاصيل الألوان والمقاسات</h4>
+              <div style={{ marginBottom: 10, fontWeight: 600 }}>
+                إجمالي الكمية قبل الإضافة: {computeTempColorsQty()}
+              </div>
+
+              {colors.length === 0 && (
+                <p className={styles.emptyState}>لم يتم اضافة الوان بعد</p>
+              )}
+              {colors.map((c, idx) => (
+                <div key={idx} className={styles.sizeRow}>
+                  <strong>{c.color}</strong>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      marginTop: 6,
+                    }}
+                  >
+                    {c.sizes && c.sizes.length ? (
+                      c.sizes.map((s, si) => (
+                        <div
+                          key={si}
+                          style={{
+                            padding: "6px 8px",
+                            borderRadius: 8,
+                            border: "1px solid #e0e0e0",
+                            background: "#fff",
+                            display: "flex",
+                            gap: 8,
+                            alignItems: "center",
+                          }}
+                        >
+                          <span>{s.size}</span>
+                          <span style={{ fontWeight: 600 }}>{s.qty}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <em style={{ color: "#666" }}>لا توجد مقاسات</em>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {form.category === "اكسسوار" && (
+              <div className={styles.inputBox}>
+                <div className="inputContainer">
+                  <label>
+                    <FaPlus />
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="الكمية"
+                    value={form.quantity}
+                    onChange={(e) =>
+                      setForm({ ...form, quantity: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+            )}
+
+            {active === "edit" ? (
+              <button className={styles.addBtn} onClick={handleUpdateProduct}>
+                تحديث المنتج
+              </button>
+            ) : (
+              <button className={styles.addBtn} onClick={handleAddProduct}>
+                اضف المنتج
+              </button>
+            )}
+          </div>
+        )}
+
+        {showModal && (
+          <div className={styles.modalOverlay} onClick={cancelModal}>
+            <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+              <div className={styles.modalContent}>
+                <div className={styles.modalHeader}>
+                  <h3>
+                    اعدادات الألوان والمقاسات — {modalCategory || "الصنف"}
+                  </h3>
+                  <button onClick={cancelModal} className={styles.closeBtn}>
+                    ✖
+                  </button>
+                </div>
+
+                <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+                  <button onClick={addTempColor} className={styles.smallBtn}>
+                    ➕ أضف لون
+                  </button>
+                  <button
+                    onClick={() => {
+                      const sample = ["أبيض", "أسود", "أحمر", "أزرق"];
+                      setTempColors((prev) => {
+                        const copy = prev.map((c) => ({
+                          color: c.color,
+                          sizes: c.sizes.map((s) => ({ ...s })),
+                        }));
+                        sample.forEach((col) => {
+                          if (!copy.find((c) => c.color === col))
+                            copy.push({ color: col, sizes: [] });
+                        });
+                        return copy;
+                      });
+                    }}
+                    className={styles.smallBtn}
+                  >
+                    أضف ألوان تجريبية
+                  </button>
+                  {modalCategory === "احذية" && (
+                    <select
+                      value={modalSizeType}
+                      onChange={(e) => setModalSizeType(e.target.value)}
+                      style={{ padding: "6px 8px", borderRadius: 8 }}
+                    >
+                      <option value="">نوع المقاس (اختياري)</option>
+                      <option value="شبابي">شبابي</option>
+                      <option value="رجالي">رجالي</option>
+                    </select>
+                  )}
+                </div>
+
+                <div className={styles.modalSection}>
+                  <div className={styles.sectionHeader}>
+                    <h4>الألوان المضافة</h4>
+                    <div />
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(220px, 1fr))",
+                      gap: 12,
+                      marginTop: 10,
+                    }}
+                  >
+                    {tempColors.map((c, ci) => (
+                      <div key={ci} className={styles.gridItem}>
+                        <div
+                          style={{
+                            width: "100%",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <div style={{ fontWeight: 700 }}>{c.color}</div>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button
+                              onClick={() => addPresetSizesToColor(ci)}
+                              className={styles.smallBtn}
+                            >
+                              إضافة جاهزة
+                            </button>
+                            <button
+                              onClick={() => removeTempColor(c.color)}
+                              className={`${styles.smallBtn} ${styles.delete}`}
+                            >
+                              حذف
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 8, width: "100%" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 8,
+                              marginBottom: 8,
+                            }}
+                          >
+                            <button
+                              onClick={() => addTempSizeToColor(ci)}
+                              className={styles.smallBtn}
+                            >
+                              ➕ أضف مقاس لهذا اللون
+                            </button>
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 8,
+                            }}
+                          >
+                            {c.sizes && c.sizes.length ? (
+                              c.sizes.map((s, si) => (
+                                <div
+                                  key={si}
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    padding: "6px 8px",
+                                    borderRadius: 8,
+                                    border: "1px solid #eee",
+                                    background: "#fff",
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 600 }}>
+                                    {s.size}
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      gap: 6,
+                                      alignItems: "center",
+                                    }}
+                                  >
+                                    <button
+                                      onClick={() => decTempSizeQty(ci, s.size)}
+                                      className={styles.smallBtn}
+                                    >
+                                      <FaMinus />
+                                    </button>
+                                    <span
+                                      style={{
+                                        minWidth: 24,
+                                        textAlign: "center",
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      {s.qty}
+                                    </span>
+                                    <button
+                                      onClick={() => incTempSizeQty(ci, s.size)}
+                                      className={styles.smallBtn}
+                                    >
+                                      <FaPlus />
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        removeTempSizeFromColor(ci, s.size)
+                                      }
+                                      className={`${styles.smallBtn} ${styles.delete}`}
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div style={{ color: "#777" }}>
+                                لا توجد مقاسات لهذا اللون
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {tempColors.length === 0 && (
+                      <div className={styles.emptyState}>لم تضف ألوان بعد</div>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 12,
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: 8,
+                  }}
+                >
+                  <button onClick={cancelModal} className={styles.btnOutline}>
+                    إلغاء
+                  </button>
+                  <button onClick={saveModal} className={styles.btnPrimary}>
+                    حفظ
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
         {showDeletePopup && (
           <div
