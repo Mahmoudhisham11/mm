@@ -1,8 +1,14 @@
-'use client';
+"use client";
 import SideBar from "@/components/SideBar/page";
 import styles from "./styles.module.css";
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot, getDocs } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  getDocs,
+} from "firebase/firestore";
 import { db } from "@/app/firebase";
 
 export default function CloseDay() {
@@ -41,73 +47,105 @@ export default function CloseDay() {
     return `${d}/${m}/${y}`;
   };
   const closeDrawer = () => {
-      setSelectedInvoice(null);
-    };
+    setSelectedInvoice(null);
+  };
 
   // load closes for a given date
   useEffect(() => {
-  const ddmmyyyy = toDDMMYYYY(dateISO);
-  if (!ddmmyyyy) return;
+    const ddmmyyyy = toDDMMYYYY(dateISO);
+    if (!ddmmyyyy) return;
 
-  setLoading(true);
+    setLoading(true);
 
-  const todayISO = new Date().toISOString().split("T")[0];
-  const todayDDMMYYYY = toDDMMYYYY(todayISO);
+    const todayISO = new Date().toISOString().split("T")[0];
+    const todayDDMMYYYY = toDDMMYYYY(todayISO);
 
-  if (ddmmyyyy === todayDDMMYYYY) {
-    // Listener فقط للتاريخ الحالي (Realtime)
-    const q = query(collection(db, "closeDayHistory"), where("closedAt", "==", ddmmyyyy));
-    const unsub = onSnapshot(
-      q,
-      (snapshot) => {
-        const docs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        docs.sort((a, b) => {
-          const ta = a.closedAtTimestamp?.toDate ? a.closedAtTimestamp.toDate().getTime() : 0;
-          const tb = b.closedAtTimestamp?.toDate ? b.closedAtTimestamp.toDate().getTime() : 0;
-          return ta - tb;
+    if (ddmmyyyy === todayDDMMYYYY) {
+      // Listener فقط للتاريخ الحالي (Realtime)
+      const q = query(
+        collection(db, "closeDayHistory"),
+        where("closedAt", "==", ddmmyyyy)
+      );
+      const unsub = onSnapshot(
+        q,
+        (snapshot) => {
+          const docs = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          docs.sort((a, b) => {
+            const ta = a.closedAtTimestamp?.toDate
+              ? a.closedAtTimestamp.toDate().getTime()
+              : 0;
+            const tb = b.closedAtTimestamp?.toDate
+              ? b.closedAtTimestamp.toDate().getTime()
+              : 0;
+            return ta - tb;
+          });
+          setCloses(docs);
+          setSelectedCloseIndex(docs.length ? 0 : -1);
+          setLoading(false);
+        },
+        (err) => {
+          console.error("closeDayHistory onSnapshot error:", err);
+          setLoading(false);
+        }
+      );
+      return () => unsub();
+    } else {
+      // التواريخ القديمة → قراءة مرة واحدة فقط
+      getDocs(
+        query(
+          collection(db, "closeDayHistory"),
+          where("closedAt", "==", ddmmyyyy)
+        )
+      )
+        .then((snapshot) => {
+          const docs = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          docs.sort((a, b) => {
+            const ta = a.closedAtTimestamp?.toDate
+              ? a.closedAtTimestamp.toDate().getTime()
+              : 0;
+            const tb = b.closedAtTimestamp?.toDate
+              ? b.closedAtTimestamp.toDate().getTime()
+              : 0;
+            return ta - tb;
+          });
+          setCloses(docs);
+          setSelectedCloseIndex(docs.length ? 0 : -1);
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error("closeDayHistory getDocs error:", err);
+          setLoading(false);
         });
-        setCloses(docs);
-        setSelectedCloseIndex(docs.length ? 0 : -1);
-        setLoading(false);
-      },
-      (err) => {
-        console.error("closeDayHistory onSnapshot error:", err);
-        setLoading(false);
-      }
-    );
-    return () => unsub();
-  } else {
-    // التواريخ القديمة → قراءة مرة واحدة فقط
-    getDocs(query(collection(db, "closeDayHistory"), where("closedAt", "==", ddmmyyyy)))
-      .then((snapshot) => {
-        const docs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        docs.sort((a, b) => {
-          const ta = a.closedAtTimestamp?.toDate ? a.closedAtTimestamp.toDate().getTime() : 0;
-          const tb = b.closedAtTimestamp?.toDate ? b.closedAtTimestamp.toDate().getTime() : 0;
-          return ta - tb;
-        });
-        setCloses(docs);
-        setSelectedCloseIndex(docs.length ? 0 : -1);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("closeDayHistory getDocs error:", err);
-        setLoading(false);
-      });
-  }
-}, [dateISO]);
-
+    }
+  }, [dateISO]);
 
   const selectedClose = closes[selectedCloseIndex] || null;
 
   const totals = (() => {
-    if (!selectedClose) return { totalSales: 0, totalExpenses: 0, net: 0 };
-    const salesArr = Array.isArray(selectedClose.sales) ? selectedClose.sales : [];
-    const masrofArr = Array.isArray(selectedClose.masrofat) ? selectedClose.masrofat : [];
+    if (!selectedClose)
+      return { totalSales: 0, totalExpenses: 0, net: 0, profit: 0 };
+
+    const salesArr = Array.isArray(selectedClose.sales)
+      ? selectedClose.sales
+      : [];
+    const masrofArr = Array.isArray(selectedClose.masrofat)
+      ? selectedClose.masrofat
+      : [];
 
     const totalSales = salesArr.reduce((sum, s) => {
       const v = Number(s.total ?? s.sum ?? 0);
       return sum + (isNaN(v) ? 0 : v);
+    }, 0);
+
+    const profit = salesArr.reduce((sum, s) => {
+      const p = Number(s.profit ?? 0);
+      return sum + (isNaN(p) ? 0 : p);
     }, 0);
 
     const totalExpenses = masrofArr.reduce((sum, m) => {
@@ -116,31 +154,49 @@ export default function CloseDay() {
     }, 0);
 
     const net = totalSales - totalExpenses;
-    return { totalSales, totalExpenses, net };
+
+    return { totalSales, totalExpenses, net, profit };
   })();
 
   const renderSalesRows = (salesArr) => {
     if (!Array.isArray(salesArr) || salesArr.length === 0) {
-      return <tr><td colSpan={currentUser === "mostafabeso10@gmail.com" ? 6 : 5} style={{ padding: 12 }}>لا توجد مبيعات في هذه التقفيلة</td></tr>;
+      return (
+        <tr>
+          <td
+            colSpan={currentUser === "mostafabeso10@gmail.com" ? 6 : 5}
+            style={{ padding: 12 }}
+          >
+            لا توجد مبيعات في هذه التقفيلة
+          </td>
+        </tr>
+      );
     }
 
-    return salesArr.map(sale => {
+    return salesArr.map((sale) => {
       const invoice = sale.invoiceNumber ?? sale.id ?? "-";
       const total = sale.total ?? sale.subtotal ?? 0;
       const profit = sale.profit ?? 0;
       const employee = sale.employee ?? sale.closedBy ?? "-";
-      const date = sale.date?.toDate ? sale.date.toDate().toLocaleString() : (sale.date ? String(sale.date) : "-");
+      const date = sale.date?.toDate
+        ? sale.date.toDate().toLocaleString()
+        : sale.date
+        ? String(sale.date)
+        : "-";
 
       return (
-        <tr 
-          key={sale.id || invoice} 
-          onClick={() => handleInvoiceClick(sale)} 
-          style={{ cursor: "pointer", backgroundColor: selectedInvoice?.id === sale.id ? "#fef3c7" : "transparent" }}
+        <tr
+          key={sale.id || invoice}
+          onClick={() => handleInvoiceClick(sale)}
+          style={{
+            cursor: "pointer",
+            backgroundColor:
+              selectedInvoice?.id === sale.id ? "#fef3c7" : "transparent",
+          }}
         >
           <td>{invoice}</td>
           <td>{employee}</td>
           <td>{date}</td>
-          <td>{sale.cart ? sale.cart.map(i => i.name).join(", ") : "-"}</td>
+          <td>{sale.cart ? sale.cart.map((i) => i.name).join(", ") : "-"}</td>
           <td>{total}</td>
           {currentUser === "mostafabeso10@gmail.com" && <td>{profit}</td>}
         </tr>
@@ -150,12 +206,20 @@ export default function CloseDay() {
 
   const renderExpenseRows = (masrofArr) => {
     if (!Array.isArray(masrofArr) || masrofArr.length === 0) {
-      return <tr><td colSpan={4} style={{ padding: 12 }}>لا توجد مصاريف في هذه التقفيلة</td></tr>;
+      return (
+        <tr>
+          <td colSpan={4} style={{ padding: 12 }}>
+            لا توجد مصاريف في هذه التقفيلة
+          </td>
+        </tr>
+      );
     }
 
-    return masrofArr.map(m => {
+    return masrofArr.map((m) => {
       const id = m.id || m.reason + Math.random();
-      const date = m.date?.toDate ? m.date.toDate().toLocaleString() : (m.date ?? "-");
+      const date = m.date?.toDate
+        ? m.date.toDate().toLocaleString()
+        : m.date ?? "-";
       const amount = m.masrof ?? m.amount ?? 0;
       const reason = m.reason ?? "-";
       const shop = m.shop ?? "-";
@@ -177,16 +241,26 @@ export default function CloseDay() {
       <div className={styles.content}>
         <h2>تقرير تقفيلات اليوم</h2>
 
-        <div className={styles.controls} style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16 }}>
+        <div
+          className={styles.controls}
+          style={{
+            display: "flex",
+            gap: 12,
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
           <label>بحث بالتاريخ:</label>
-          {currentUser === 'mostafabeso10@gmail.com' ? 
+          {currentUser === "mostafabeso10@gmail.com" ? (
             <input
               type="date"
               value={dateISO}
               onChange={(e) => setDateISO(e.target.value)}
               style={{ padding: "6px 8px" }}
-            /> : ""  
-          }
+            />
+          ) : (
+            ""
+          )}
           <div style={{ marginLeft: "auto", color: "#555" }}>
             {loading ? "جارٍ التحميل..." : `${closes.length} تقفيلة`}
           </div>
@@ -194,23 +268,31 @@ export default function CloseDay() {
 
         <div className={styles.cardsContainer}>
           {closes.length === 0 ? (
-            <div className={styles.card} style={{ padding: 12 }}>لا توجد تقفيلات لهذا التاريخ</div>
+            <div className={styles.card} style={{ padding: 12 }}>
+              لا توجد تقفيلات لهذا التاريخ
+            </div>
           ) : (
             closes.map((c, idx) => {
-              const timeLabel = c.closedAtTimestamp?.toDate ? c.closedAtTimestamp.toDate().toLocaleTimeString() : (c.closedAt ?? "-");
+              const timeLabel = c.closedAtTimestamp?.toDate
+                ? c.closedAtTimestamp.toDate().toLocaleTimeString()
+                : c.closedAt ?? "-";
               const closedBy = c.closedBy ?? "-";
               const isSelected = idx === selectedCloseIndex;
               return (
                 <div
                   key={c.id}
                   onClick={() => setSelectedCloseIndex(idx)}
-                  className={`${styles.card} ${isSelected ? styles.selected : ""}`}
+                  className={`${styles.card} ${
+                    isSelected ? styles.selected : ""
+                  }`}
                   style={{
                     cursor: "pointer",
                     padding: 12,
-                    border: isSelected ? "2px solid #ffd400" : "1px solid #e0e0e0",
+                    border: isSelected
+                      ? "2px solid #ffd400"
+                      : "1px solid #e0e0e0",
                     borderRadius: 8,
-                    minWidth: 160
+                    minWidth: 160,
                   }}
                 >
                   <div>{timeLabel}</div>
@@ -237,7 +319,12 @@ export default function CloseDay() {
               <h4>صافي المبيعات</h4>
               <p>{totals.net}</p>
             </div>
-
+            {currentUser === "mostafabeso10@gmail.com" && (
+              <div className={styles.card}>
+                <h4>الربح</h4>
+                <p>{totals.profit}</p>
+              </div>
+            )}
             <div className={styles.card}>
               <h4>قفل بواسطة</h4>
               <p>{selectedClose.closedBy ?? "-"}</p>
@@ -245,15 +332,47 @@ export default function CloseDay() {
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-          <button onClick={() => setShowSales(true)} style={{ padding: "8px 12px", background: showSales ? "#ffd400" : "#f1f1f1", border: "none", borderRadius: 6 }}>عرض المبيعات</button>
-          <button onClick={() => setShowSales(false)} style={{ padding: "8px 12px", background: !showSales ? "#ffd400" : "#f1f1f1", border: "none", borderRadius: 6 }}>عرض المصروفات</button>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <button
+            onClick={() => setShowSales(true)}
+            style={{
+              padding: "8px 12px",
+              background: showSales ? "#ffd400" : "#f1f1f1",
+              border: "none",
+              borderRadius: 6,
+            }}
+          >
+            عرض المبيعات
+          </button>
+          <button
+            onClick={() => setShowSales(false)}
+            style={{
+              padding: "8px 12px",
+              background: !showSales ? "#ffd400" : "#f1f1f1",
+              border: "none",
+              borderRadius: 6,
+            }}
+          >
+            عرض المصروفات
+          </button>
           <div style={{ marginLeft: "auto", color: "#444" }}>
-            {selectedClose ? `عرض ${showSales ? "المبيعات" : "المصاريف"} للتقفيلة المختارة` : ""}
+            {selectedClose
+              ? `عرض ${showSales ? "المبيعات" : "المصاريف"} للتقفيلة المختارة`
+              : ""}
           </div>
         </div>
 
-        <div className={styles.tableContainer} style={{ border: "1px solid #eee", borderRadius: 8 }}>
+        <div
+          className={styles.tableContainer}
+          style={{ border: "1px solid #eee", borderRadius: 8 }}
+        >
           <table>
             <thead>
               {showSales ? (
@@ -278,14 +397,23 @@ export default function CloseDay() {
             <tbody>
               {!selectedClose ? (
                 <tr>
-                  <td colSpan={showSales ? (currentUser === "mostafabeso10@gmail.com" ? 6 : 5) : 4} style={{ padding: 12 }}>
+                  <td
+                    colSpan={
+                      showSales
+                        ? currentUser === "mostafabeso10@gmail.com"
+                          ? 6
+                          : 5
+                        : 4
+                    }
+                    style={{ padding: 12 }}
+                  >
                     اختر تقفيلة لعرض البيانات
                   </td>
                 </tr>
+              ) : showSales ? (
+                renderSalesRows(selectedClose.sales || [])
               ) : (
-                showSales
-                  ? renderSalesRows(selectedClose.sales || [])
-                  : renderExpenseRows(selectedClose.masrofat || [])
+                renderExpenseRows(selectedClose.masrofat || [])
               )}
             </tbody>
           </table>
@@ -295,42 +423,57 @@ export default function CloseDay() {
       {/* Sidebar لتفاصيل الفاتورة */}
       {selectedInvoice && (
         <div className={styles.invoiceSidebar}>
-            <div className={styles.sidebarHeader}>
-              <h3>تفاصيل الفاتورة</h3>
-              <button onClick={closeDrawer}>إغلاق</button>
-            </div>
-
-            <div className={styles.sidebarInfo}>
-              <p><strong>اسم العميل:</strong> {selectedInvoice.clientName}</p>
-              <p><strong>رقم الهاتف:</strong> {selectedInvoice.phone}</p>
-              <p><strong>الموظف:</strong> {selectedInvoice.employee || "-"}</p>
-              <p><strong>التاريخ:</strong> {selectedInvoice.date ? new Date(selectedInvoice.date.seconds * 1000).toLocaleString("ar-EG") : "-"}</p>
-            </div>
-            <div className={styles.sidebarProducts}>
-              <h5>المنتجات</h5>
-              <table>
-                <thead>
-                  <tr>
-                    <th>الكود</th>
-                    <th>المنتج</th>
-                    <th>السعر</th>
-                    <th>الكمية</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedInvoice.cart?.map((item, index) => (
-                    <tr key={index}>
-                      <td>{item.code}</td>
-                      <td>{item.name} {item.color ? ` - ${item.color}` : ""} {item.size ? ` - ${item.size}` : ""}</td>
-                      <td>{item.sellPrice}</td>
-                      <td>{item.quantity}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
+          <div className={styles.sidebarHeader}>
+            <h3>تفاصيل الفاتورة</h3>
+            <button onClick={closeDrawer}>إغلاق</button>
           </div>
+
+          <div className={styles.sidebarInfo}>
+            <p>
+              <strong>اسم العميل:</strong> {selectedInvoice.clientName}
+            </p>
+            <p>
+              <strong>رقم الهاتف:</strong> {selectedInvoice.phone}
+            </p>
+            <p>
+              <strong>الموظف:</strong> {selectedInvoice.employee || "-"}
+            </p>
+            <p>
+              <strong>التاريخ:</strong>{" "}
+              {selectedInvoice.date
+                ? new Date(selectedInvoice.date.seconds * 1000).toLocaleString(
+                    "ar-EG"
+                  )
+                : "-"}
+            </p>
+          </div>
+          <div className={styles.sidebarProducts}>
+            <h5>المنتجات</h5>
+            <table>
+              <thead>
+                <tr>
+                  <th>الكود</th>
+                  <th>المنتج</th>
+                  <th>السعر</th>
+                  <th>الكمية</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedInvoice.cart?.map((item, index) => (
+                  <tr key={index}>
+                    <td>{item.code}</td>
+                    <td>
+                      {item.name} {item.color ? ` - ${item.color}` : ""}{" "}
+                      {item.size ? ` - ${item.size}` : ""}
+                    </td>
+                    <td>{item.sellPrice}</td>
+                    <td>{item.quantity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   );
