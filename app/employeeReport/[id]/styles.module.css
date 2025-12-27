@@ -2,286 +2,528 @@
   width: 100%;
   min-height: 100vh;
   display: flex;
-  background: #f9fafb;
+  justify-content: start;
+  align-items: start;
+  background-color: var(--background);
 }
 
-/* المحتوى الأساسي */
 .content {
-  flex: 1;
-  padding: 25px 3%;
-  display: flex;
-  flex-direction: column;
-  gap: 25px;
-  overflow: hidden;
-}
-.btns {
-  margin-top: 20px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
-  gap: 15px;
-}
-.btns button {
-  background-color: var(--main-color);
-  color: white;
-  border: none;
   width: 100%;
-  font-size: 25px;
-  border-radius: 8px;
-
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
-/* ✅ العنوان الرئيسي + الأزرار */
-.title {
+/* Header */
+.header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 15px;
+  gap: 16px;
+  padding: 20px;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
 }
 
-.title h2 {
-  color: var(--main-color);
-  font-size: 22px;
+.title {
+  font-size: 28px;
   font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
 }
 
-.buttonsRow {
+.headerActions {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
 }
 
-.addButton,
-.deleteAllButton {
+.viewSalesBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: linear-gradient(
+    135deg,
+    var(--main-color),
+    var(--main-color-hover)
+  );
+  color: white;
   border: none;
-  outline: none;
-  padding: 10px 18px;
   border-radius: 10px;
-  font-size: 14px;
-  cursor: pointer;
+  font-size: 15px;
   font-weight: 600;
-  transition: all 0.25s ease-in-out;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
 }
 
-.addButton {
-  background: linear-gradient(135deg, #10b981, #059669);
-  color: white;
+.viewSalesBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
-.addButton:hover {
-  background: linear-gradient(135deg, #059669, #047857);
+.viewSalesBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Search Box */
+.searchBox {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 20px;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+}
+
+.inputContainer {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.searchLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.searchInput {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 15px;
+  font-family: "Tajawal", sans-serif;
+  color: var(--text-primary);
+  background: var(--surface-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.searchInput:focus {
+  border-color: var(--main-color);
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+}
+
+[data-theme="dark"] .searchInput:focus {
+  box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.2);
+}
+
+.clearSearchBtn {
+  padding: 12px 20px;
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.clearSearchBtn:hover {
+  background: var(--surface);
   transform: translateY(-2px);
 }
 
-.deleteAllButton {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: white;
-}
-
-.deleteAllButton:hover {
-  background: linear-gradient(135deg, #dc2626, #b91c1c);
-  transform: translateY(-2px);
-}
-
-/* ✅ الكروت */
+/* Summary Cards */
 .cardContainer {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 20px;
-  margin-top: 10px;
 }
 
 .card {
-  background: linear-gradient(135deg, var(--main-color), #334155);
-  color: #fff;
-  border-radius: 15px;
-  padding: 20px;
-  text-align: center;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
-  transition: all 0.25s ease;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
 }
 
 .card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-hover);
 }
 
 .card h3 {
   font-size: 16px;
-  margin-bottom: 8px;
-  color: #f0f0f0;
-  font-weight: 500;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 12px 0;
 }
 
 .card p {
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 700;
+  color: var(--main-color);
   margin: 0;
 }
-.tableContainer {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    overflow-x: auto;
+
+/* Table Wrapper */
+.tableWrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  padding: 20px;
 }
 
-/* ✅ أزرار التحكم في الجدول */
-.editButton,
-.deleteButton {
-  border: none;
-  padding: 6px 10px;
-  border-radius: 8px;
+.sectionTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 20px 0;
+}
+
+.employeeTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+}
+
+.employeeTable th {
+  padding: 16px 12px;
+  text-align: right;
   font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--surface-hover);
+  border-bottom: 2px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.employeeTable td {
+  padding: 16px 12px;
+  text-align: right;
+  font-size: 14px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.employeeTable tbody tr {
+  transition: all 0.2s ease;
+}
+
+.employeeTable tbody tr:hover {
+  background-color: var(--surface-hover);
+}
+
+.totalCell {
+  font-weight: 700;
+  color: var(--main-color) !important;
+  font-size: 16px;
+}
+
+.emptyCell {
+  text-align: center !important;
+  padding: 40px !important;
+}
+
+.emptyState {
+  color: var(--text-tertiary);
+  font-size: 16px;
+  font-style: italic;
+}
+
+.actionsCell {
+  text-align: center !important;
+}
+
+.deleteBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(244, 67, 54, 0.1);
+  color: var(--error);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  border-radius: 8px;
   cursor: pointer;
-  font-weight: 500;
-  transition: all 0.25s ease;
-  margin: 0 3px;
+  transition: all 0.2s ease;
+  font-size: 16px;
 }
 
-.editButton {
-  background-color: #3b82f6;
+.deleteBtn:hover:not(:disabled) {
+  background: var(--error);
   color: white;
+  transform: scale(1.1);
 }
 
-.editButton:hover {
-  background-color: #2563eb;
-  transform: translateY(-2px);
+.deleteBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.deleteButton {
-  background-color: #ef4444;
+/* Actions Section */
+.actionsSection {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 20px;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+}
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: linear-gradient(
+    135deg,
+    var(--main-color),
+    var(--main-color-hover)
+  );
   color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
 }
 
-.deleteButton:hover {
-  background-color: #dc2626;
+.actionBtn:hover:not(:disabled) {
   transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
-/* ✅ الـ Popup */
+.actionBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.deleteSalesBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: var(--error);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.deleteSalesBtn:hover:not(:disabled) {
+  background: #d32f2f;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.deleteSalesBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Modal Styles */
 .popupOverlay {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.4);
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
   display: flex;
-  justify-content: center;
   align-items: center;
-  z-index: 1000;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease;
 }
 
-.popup {
-  background: white;
+[data-theme="dark"] .popupOverlay {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.popupBox {
   width: 90%;
-  max-width: 400px;
-  border-radius: 15px;
-  padding: 25px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
-  animation: popupFade 0.3s ease forwards;
+  max-width: 600px;
+  max-height: 90vh;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+  border: 1px solid var(--border-color);
+  animation: slideUp 0.3s ease;
+  overflow-y: auto;
+}
+
+.popupBox h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 20px 0;
+}
+
+.modalContent {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
-@keyframes popupFade {
+.modalTableWrapper {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+
+.popupBtns {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.cancelBtn {
+  padding: 12px 24px;
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.cancelBtn:hover:not(:disabled) {
+  background: var(--surface);
+  transform: translateY(-2px);
+}
+
+.cancelBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.confirmBtn {
+  padding: 12px 24px;
+  background: linear-gradient(
+    135deg,
+    var(--main-color),
+    var(--main-color-hover)
+  );
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.confirmBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.confirmBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(-15px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
-.popup h3 {
-  color: var(--main-color);
-  text-align: center;
-  margin-bottom: 5px;
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
-.popup label {
-  font-size: 14px;
-  color: #333;
-  font-weight: 500;
-}
+@media screen and (max-width: 768px) {
+  .content {
+    padding: 16px;
+    gap: 16px;
+  }
 
-.popup input,
-.popup select,
-.popup textarea {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: 0.2s;
-}
-
-.popup input:focus,
-.popup select:focus,
-.popup textarea:focus {
-  border-color: var(--main-color);
-  outline: none;
-  box-shadow: 0 0 4px rgba(37, 99, 235, 0.2);
-}
-
-.popupButtons {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.popupButtons button {
-  flex: 1;
-  border: none;
-  padding: 10px;
-  border-radius: 10px;
-  color: white;
-  cursor: pointer;
-  font-size: 15px;
-  font-weight: 600;
-  transition: all 0.25s ease-in-out;
-}
-
-.popupButtons button:first-child {
-  background: var(--main-color);
-}
-
-.popupButtons button:first-child:hover {
-  background: #1d4ed8;
-}
-
-.popupButtons button:last-child {
-  background: #ef4444;
-}
-
-.popupButtons button:last-child:hover {
-  background: #dc2626;
-}
-
-/* ✅ متجاوب مع الشاشات الصغيرة */
-@media (max-width: 768px) {
-  .title {
+  .header {
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .buttonsRow {
+  .searchBox {
+    flex-direction: column;
+  }
+
+  .inputContainer {
     width: 100%;
-    justify-content: flex-start;
   }
 
   .cardContainer {
     grid-template-columns: 1fr;
   }
-  .popup {
+
+  .employeeTable {
+    min-width: 600px;
+  }
+
+  .employeeTable th,
+  .employeeTable td {
+    padding: 12px 8px;
+    font-size: 13px;
+  }
+
+  .actionsSection {
+    flex-direction: column;
+  }
+
+  .actionBtn,
+  .deleteSalesBtn {
+    width: 100%;
+  }
+
+  .popupBox {
     width: 95%;
     padding: 20px;
   }

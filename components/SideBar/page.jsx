@@ -1,10 +1,7 @@
 'use client';
 import styles from "./styles.module.css";
-import Image from "next/image";
 import Link from "next/link";
-import logo from "../../public/images/logo.png"
 import { IoHomeOutline } from "react-icons/io5";
-import { IoIosPhonePortrait } from "react-icons/io";
 import { TbMoneybag } from "react-icons/tb";
 import { HiOutlineWallet } from "react-icons/hi2";
 import { GoGear } from "react-icons/go";
@@ -12,12 +9,14 @@ import { BiLogOutCircle } from "react-icons/bi";
 import { TbReportSearch } from "react-icons/tb";
 import { TbReportMoney } from "react-icons/tb";
 import { IoPersonOutline } from "react-icons/io5";
-import { CiWallet } from "react-icons/ci";
 import { IoIosCloseCircle } from "react-icons/io";
+import { MdDarkMode, MdLightMode } from "react-icons/md";
 import { useEffect, useState } from "react";
+import { useTheme } from "@/contexts/ThemeContext";
 
 function SideBar({openSideBar, setOpenSideBar}) {
     const [currentUser, setCurrentUser] = useState(null);
+    const { theme, toggleTheme } = useTheme();
 
     useEffect(() => {
         if (typeof window !== "undefined") {
@@ -38,6 +37,12 @@ function SideBar({openSideBar, setOpenSideBar}) {
                     <h2>Devoria</h2>
                 </div>
                 <button className={styles.closeBtn} onClick={() => setOpenSideBar(false)}><IoIosCloseCircle/></button>
+            </div>
+            <div className={styles.themeToggle}>
+                <button onClick={toggleTheme} className={styles.themeBtn} title={theme === "light" ? "التبديل للوضع الداكن" : "التبديل للوضع الفاتح"}>
+                    {theme === "light" ? <MdDarkMode /> : <MdLightMode />}
+                    <span>{theme === "light" ? "الوضع الداكن" : "الوضع الفاتح"}</span>
+                </button>
             </div>
             <div className={styles.actions}>
                 <Link href={'/'} className={styles.actionLinks}>
@@ -86,7 +91,7 @@ function SideBar({openSideBar, setOpenSideBar}) {
             <div className={styles.logout}>
                 {currentUser === "mostafabeso10@gmail.com" && 
                   <Link href={'/settings'} className={styles.actionLinks}>
-                    <span><TbReportSearch/></span>
+                    <span><GoGear/></span>
                     <span>الاعدادات</span>
                 </Link>  
                 }

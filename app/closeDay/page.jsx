@@ -1,7 +1,7 @@
 "use client";
 import SideBar from "@/components/SideBar/page";
 import styles from "./styles.module.css";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   collection,
   query,
@@ -10,9 +10,13 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db } from "@/app/firebase";
+import Loader from "@/components/Loader/Loader";
+import { NotificationProvider, useNotification } from "@/contexts/NotificationContext";
 
-export default function CloseDay() {
-  // states
+const ADMIN_USER = "mostafabeso10@gmail.com";
+
+function CloseDayContent() {
+  const { error: showError } = useNotification();
   const [dateISO, setDateISO] = useState(() => {
     const d = new Date();
     return d.toISOString().split("T")[0];
@@ -22,40 +26,42 @@ export default function CloseDay() {
   const [selectedCloseIndex, setSelectedCloseIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [showSales, setShowSales] = useState(true);
-
-  // current user
   const [currentUser, setCurrentUser] = useState("");
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [shop, setShop] = useState("");
+  const [error, setError] = useState(null);
+
+  // Get current user and shop
   useEffect(() => {
-    const user = localStorage.getItem("userName") || "";
-    setCurrentUser(user);
+    if (typeof window !== "undefined") {
+      const user = localStorage.getItem("userName") || "";
+      const shopValue = localStorage.getItem("shop") || "";
+      setCurrentUser(user);
+      setShop(shopValue);
+    }
   }, []);
 
-  // sidebar state
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
-
-  const handleInvoiceClick = (invoice) => {
-    setSelectedInvoice(invoice);
-  };
-  const closeInvoiceSidebar = () => {
-    setSelectedInvoice(null);
-  };
-
-  // helper: yyyy-mm-dd -> DD/MM/YYYY
-  const toDDMMYYYY = (isoDate) => {
+  // Helper: yyyy-mm-dd -> DD/MM/YYYY
+  const toDDMMYYYY = useCallback((isoDate) => {
     if (!isoDate) return "";
-    const [y, m, d] = isoDate.split("-");
-    return `${d}/${m}/${y}`;
-  };
-  const closeDrawer = () => {
-    setSelectedInvoice(null);
-  };
+    try {
+      const [y, m, d] = isoDate.split("-");
+      if (!y || !m || !d) return "";
+      return `${d}/${m}/${y}`;
+    } catch {
+      return "";
+    }
+  }, []);
 
-  // load closes for a given date
+  // Load closes for a given date
   useEffect(() => {
+    if (!shop) return;
+    
     const ddmmyyyy = toDDMMYYYY(dateISO);
     if (!ddmmyyyy) return;
 
     setLoading(true);
+    setError(null);
 
     const todayISO = new Date().toISOString().split("T")[0];
     const todayDDMMYYYY = toDDMMYYYY(todayISO);
@@ -64,7 +70,8 @@ export default function CloseDay() {
       // Listener فقط للتاريخ الحالي (Realtime)
       const q = query(
         collection(db, "closeDayHistory"),
-        where("closedAt", "==", ddmmyyyy)
+        where("closedAt", "==", ddmmyyyy),
+        where("shop", "==", shop)
       );
       const unsub = onSnapshot(
         q,
@@ -88,6 +95,8 @@ export default function CloseDay() {
         },
         (err) => {
           console.error("closeDayHistory onSnapshot error:", err);
+          setError("حدث خطأ أثناء جلب البيانات");
+          showError("حدث خطأ أثناء جلب بيانات التقفيلات");
           setLoading(false);
         }
       );
@@ -97,7 +106,8 @@ export default function CloseDay() {
       getDocs(
         query(
           collection(db, "closeDayHistory"),
-          where("closedAt", "==", ddmmyyyy)
+          where("closedAt", "==", ddmmyyyy),
+          where("shop", "==", shop)
         )
       )
         .then((snapshot) => {
@@ -120,14 +130,17 @@ export default function CloseDay() {
         })
         .catch((err) => {
           console.error("closeDayHistory getDocs error:", err);
+          setError("حدث خطأ أثناء جلب البيانات");
+          showError("حدث خطأ أثناء جلب بيانات التقفيلات");
           setLoading(false);
         });
     }
-  }, [dateISO]);
+  }, [dateISO, shop, toDDMMYYYY, showError]);
 
   const selectedClose = closes[selectedCloseIndex] || null;
 
-  const totals = (() => {
+  // Calculate totals with useMemo
+  const totals = useMemo(() => {
     if (!selectedClose)
       return { totalSales: 0, totalExpenses: 0, net: 0, profit: 0 };
 
@@ -156,125 +169,153 @@ export default function CloseDay() {
     const net = totalSales - totalExpenses;
 
     return { totalSales, totalExpenses, net, profit };
-  })();
+  }, [selectedClose]);
 
-  const renderSalesRows = (salesArr) => {
-    if (!Array.isArray(salesArr) || salesArr.length === 0) {
-      return (
-        <tr>
-          <td
-            colSpan={currentUser === "mostafabeso10@gmail.com" ? 6 : 5}
-            style={{ padding: 12 }}
+  const isAdmin = currentUser === ADMIN_USER;
+
+  // Render sales rows
+  const renderSalesRows = useCallback(
+    (salesArr) => {
+      if (!Array.isArray(salesArr) || salesArr.length === 0) {
+        return (
+          <tr>
+            <td
+              colSpan={isAdmin ? 6 : 5}
+              className={styles.emptyCell}
+            >
+              <div className={styles.emptyState}>
+                <p>❌ لا توجد مبيعات في هذه التقفيلة</p>
+              </div>
+            </td>
+          </tr>
+        );
+      }
+
+      return salesArr.map((sale, index) => {
+        const invoice = sale.invoiceNumber ?? sale.id ?? `sale-${index}`;
+        const total = sale.total ?? sale.subtotal ?? 0;
+        const profit = sale.profit ?? 0;
+        const employee = sale.employee ?? sale.closedBy ?? "-";
+        const date = sale.date?.toDate
+          ? sale.date.toDate().toLocaleString("ar-EG")
+          : sale.date
+          ? String(sale.date)
+          : "-";
+
+        return (
+          <tr
+            key={sale.id || invoice}
+            onClick={() => setSelectedInvoice(sale)}
+            className={`${styles.tableRow} ${
+              selectedInvoice?.id === sale.id ? styles.selectedRow : ""
+            }`}
           >
-            لا توجد مبيعات في هذه التقفيلة
-          </td>
-        </tr>
-      );
-    }
+            <td className={styles.invoiceCell}>{invoice}</td>
+            <td className={styles.employeeCell}>{employee}</td>
+            <td className={styles.dateCell}>{date}</td>
+            <td className={styles.productsCell}>
+              {sale.cart ? sale.cart.map((i) => i.name).join(", ") : "-"}
+            </td>
+            <td className={styles.totalCell}>{total.toFixed(2)} EGP</td>
+            {isAdmin && (
+              <td className={styles.profitCell}>{profit.toFixed(2)} EGP</td>
+            )}
+          </tr>
+        );
+      });
+    },
+    [isAdmin, selectedInvoice]
+  );
 
-    return salesArr.map((sale) => {
-      const invoice = sale.invoiceNumber ?? sale.id ?? "-";
-      const total = sale.total ?? sale.subtotal ?? 0;
-      const profit = sale.profit ?? 0;
-      const employee = sale.employee ?? sale.closedBy ?? "-";
-      const date = sale.date?.toDate
-        ? sale.date.toDate().toLocaleString()
-        : sale.date
-        ? String(sale.date)
-        : "-";
-
-      return (
-        <tr
-          key={sale.id || invoice}
-          onClick={() => handleInvoiceClick(sale)}
-          style={{
-            cursor: "pointer",
-            backgroundColor:
-              selectedInvoice?.id === sale.id ? "#fef3c7" : "transparent",
-          }}
-        >
-          <td>{invoice}</td>
-          <td>{employee}</td>
-          <td>{date}</td>
-          <td>{sale.cart ? sale.cart.map((i) => i.name).join(", ") : "-"}</td>
-          <td>{total}</td>
-          {currentUser === "mostafabeso10@gmail.com" && <td>{profit}</td>}
-        </tr>
-      );
-    });
-  };
-
-  const renderExpenseRows = (masrofArr) => {
+  // Render expense rows
+  const renderExpenseRows = useCallback((masrofArr) => {
     if (!Array.isArray(masrofArr) || masrofArr.length === 0) {
       return (
         <tr>
-          <td colSpan={4} style={{ padding: 12 }}>
-            لا توجد مصاريف في هذه التقفيلة
+          <td colSpan={4} className={styles.emptyCell}>
+            <div className={styles.emptyState}>
+              <p>❌ لا توجد مصاريف في هذه التقفيلة</p>
+            </div>
           </td>
         </tr>
       );
     }
 
-    return masrofArr.map((m) => {
-      const id = m.id || m.reason + Math.random();
+    return masrofArr.map((m, index) => {
+      const id = m.id || `expense-${index}-${m.reason || ""}`;
       const date = m.date?.toDate
-        ? m.date.toDate().toLocaleString()
+        ? m.date.toDate().toLocaleString("ar-EG")
         : m.date ?? "-";
       const amount = m.masrof ?? m.amount ?? 0;
       const reason = m.reason ?? "-";
-      const shop = m.shop ?? "-";
+      const shopName = m.shop ?? "-";
       return (
-        <tr key={id}>
-          <td>{reason}</td>
-          <td>{shop}</td>
-          <td>{date}</td>
-          <td>{amount}</td>
+        <tr key={id} className={styles.tableRow}>
+          <td className={styles.reasonCell}>{reason}</td>
+          <td className={styles.shopCell}>{shopName}</td>
+          <td className={styles.dateCell}>{date}</td>
+          <td className={styles.amountCell}>{amount.toFixed(2)} EGP</td>
         </tr>
       );
     });
-  };
+  }, []);
+
+  const handleInvoiceClick = useCallback((invoice) => {
+    setSelectedInvoice(invoice);
+  }, []);
+
+  const closeDrawer = useCallback(() => {
+    setSelectedInvoice(null);
+  }, []);
+
+  if (loading && closes.length === 0) {
+    return <Loader />;
+  }
 
   return (
     <div className={styles.closeDay}>
       <SideBar />
 
       <div className={styles.content}>
-        <h2>تقرير تقفيلات اليوم</h2>
+        {/* Header */}
+        <div className={styles.header}>
+          <h2 className={styles.title}>تقرير تقفيلات اليوم</h2>
+        </div>
 
-        <div
-          className={styles.controls}
-          style={{
-            display: "flex",
-            gap: 12,
-            alignItems: "center",
-            marginBottom: 16,
-          }}
-        >
-          <label>بحث بالتاريخ:</label>
-          {currentUser === "mostafabeso10@gmail.com" ? (
-            <input
-              type="date"
-              value={dateISO}
-              onChange={(e) => setDateISO(e.target.value)}
-              style={{ padding: "6px 8px" }}
-            />
-          ) : (
-            ""
-          )}
-          <div style={{ marginLeft: "auto", color: "#555" }}>
-            {loading ? "جارٍ التحميل..." : `${closes.length} تقفيلة`}
+        {/* Controls */}
+        <div className={styles.controls}>
+          <div className={styles.controlsLeft}>
+            <label className={styles.dateLabel}>بحث بالتاريخ:</label>
+            {isAdmin && (
+              <input
+                type="date"
+                value={dateISO}
+                onChange={(e) => setDateISO(e.target.value)}
+                className={styles.dateInput}
+              />
+            )}
+          </div>
+          <div className={styles.loadingInfo}>
+            {loading ? (
+              <span className={styles.loadingText}>جارٍ التحميل...</span>
+            ) : (
+              <span className={styles.countText}>
+                {closes.length} {closes.length === 1 ? "تقفيلة" : "تقفيلات"}
+              </span>
+            )}
           </div>
         </div>
 
+        {/* Close Cards */}
         <div className={styles.cardsContainer}>
           {closes.length === 0 ? (
-            <div className={styles.card} style={{ padding: 12 }}>
-              لا توجد تقفيلات لهذا التاريخ
+            <div className={styles.emptyCard}>
+              <p>لا توجد تقفيلات لهذا التاريخ</p>
             </div>
           ) : (
             closes.map((c, idx) => {
               const timeLabel = c.closedAtTimestamp?.toDate
-                ? c.closedAtTimestamp.toDate().toLocaleTimeString()
+                ? c.closedAtTimestamp.toDate().toLocaleTimeString("ar-EG")
                 : c.closedAt ?? "-";
               const closedBy = c.closedBy ?? "-";
               const isSelected = idx === selectedCloseIndex;
@@ -283,97 +324,87 @@ export default function CloseDay() {
                   key={c.id}
                   onClick={() => setSelectedCloseIndex(idx)}
                   className={`${styles.card} ${
-                    isSelected ? styles.selected : ""
+                    isSelected ? styles.selectedCard : ""
                   }`}
-                  style={{
-                    cursor: "pointer",
-                    padding: 12,
-                    border: isSelected
-                      ? "2px solid #ffd400"
-                      : "1px solid #e0e0e0",
-                    borderRadius: 8,
-                    minWidth: 160,
-                  }}
                 >
-                  <div>{timeLabel}</div>
-                  <div>بواسطة: {closedBy}</div>
+                  <div className={styles.cardTime}>{timeLabel}</div>
+                  <div className={styles.cardBy}>بواسطة: {closedBy}</div>
                 </div>
               );
             })
           )}
         </div>
 
+        {/* Summary Cards */}
         {selectedClose && (
-          <div className={styles.cardsContainer}>
-            <div className={styles.card}>
-              <h4>إجمالي المبيعات</h4>
-              <p>{totals.totalSales}</p>
+          <div className={styles.summaryCards}>
+            <div className={styles.summaryCard}>
+              <span className={styles.summaryLabel}>إجمالي المبيعات</span>
+              <span className={styles.summaryValue}>
+                {totals.totalSales.toFixed(2)} EGP
+              </span>
             </div>
 
-            <div className={styles.card}>
-              <h4>إجمالي المصروفات</h4>
-              <p>{totals.totalExpenses}</p>
+            <div className={styles.summaryCard}>
+              <span className={styles.summaryLabel}>إجمالي المصروفات</span>
+              <span className={styles.summaryValue}>
+                {totals.totalExpenses.toFixed(2)} EGP
+              </span>
             </div>
 
-            <div className={styles.card}>
-              <h4>صافي المبيعات</h4>
-              <p>{totals.net}</p>
+            <div className={styles.summaryCard}>
+              <span className={styles.summaryLabel}>صافي المبيعات</span>
+              <span className={styles.summaryValue}>
+                {totals.net.toFixed(2)} EGP
+              </span>
             </div>
-            {currentUser === "mostafabeso10@gmail.com" && (
-              <div className={styles.card}>
-                <h4>الربح</h4>
-                <p>{totals.profit}</p>
+
+            {isAdmin && (
+              <div className={styles.summaryCard}>
+                <span className={styles.summaryLabel}>الربح</span>
+                <span className={styles.summaryValue}>
+                  {totals.profit.toFixed(2)} EGP
+                </span>
               </div>
             )}
-            <div className={styles.card}>
-              <h4>قفل بواسطة</h4>
-              <p>{selectedClose.closedBy ?? "-"}</p>
+
+            <div className={styles.summaryCard}>
+              <span className={styles.summaryLabel}>قفل بواسطة</span>
+              <span className={styles.summaryValue}>
+                {selectedClose.closedBy ?? "-"}
+              </span>
             </div>
           </div>
         )}
 
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-            marginBottom: 8,
-          }}
-        >
+        {/* Toggle Buttons */}
+        <div className={styles.toggleButtons}>
           <button
             onClick={() => setShowSales(true)}
-            style={{
-              padding: "8px 12px",
-              background: showSales ? "#ffd400" : "#f1f1f1",
-              border: "none",
-              borderRadius: 6,
-            }}
+            className={`${styles.toggleBtn} ${
+              showSales ? styles.toggleBtnActive : ""
+            }`}
           >
             عرض المبيعات
           </button>
           <button
             onClick={() => setShowSales(false)}
-            style={{
-              padding: "8px 12px",
-              background: !showSales ? "#ffd400" : "#f1f1f1",
-              border: "none",
-              borderRadius: 6,
-            }}
+            className={`${styles.toggleBtn} ${
+              !showSales ? styles.toggleBtnActive : ""
+            }`}
           >
             عرض المصروفات
           </button>
-          <div style={{ marginLeft: "auto", color: "#444" }}>
+          <div className={styles.toggleInfo}>
             {selectedClose
               ? `عرض ${showSales ? "المبيعات" : "المصاريف"} للتقفيلة المختارة`
               : ""}
           </div>
         </div>
 
-        <div
-          className={styles.tableContainer}
-          style={{ border: "1px solid #eee", borderRadius: 8 }}
-        >
-          <table>
+        {/* Table */}
+        <div className={styles.tableWrapper}>
+          <table className={styles.closeDayTable}>
             <thead>
               {showSales ? (
                 <tr>
@@ -382,7 +413,7 @@ export default function CloseDay() {
                   <th>الوقت</th>
                   <th>المنتجات</th>
                   <th>الإجمالي</th>
-                  {currentUser === "mostafabeso10@gmail.com" && <th>الربح</th>}
+                  {isAdmin && <th>الربح</th>}
                 </tr>
               ) : (
                 <tr>
@@ -398,16 +429,12 @@ export default function CloseDay() {
               {!selectedClose ? (
                 <tr>
                   <td
-                    colSpan={
-                      showSales
-                        ? currentUser === "mostafabeso10@gmail.com"
-                          ? 6
-                          : 5
-                        : 4
-                    }
-                    style={{ padding: 12 }}
+                    colSpan={showSales ? (isAdmin ? 6 : 5) : 4}
+                    className={styles.emptyCell}
                   >
-                    اختر تقفيلة لعرض البيانات
+                    <div className={styles.emptyState}>
+                      <p>اختر تقفيلة لعرض البيانات</p>
+                    </div>
                   </td>
                 </tr>
               ) : showSales ? (
@@ -420,61 +447,81 @@ export default function CloseDay() {
         </div>
       </div>
 
-      {/* Sidebar لتفاصيل الفاتورة */}
+      {/* Invoice Sidebar */}
       {selectedInvoice && (
         <div className={styles.invoiceSidebar}>
           <div className={styles.sidebarHeader}>
             <h3>تفاصيل الفاتورة</h3>
-            <button onClick={closeDrawer}>إغلاق</button>
+            <button className={styles.closeBtn} onClick={closeDrawer}>
+              ×
+            </button>
           </div>
 
           <div className={styles.sidebarInfo}>
             <p>
-              <strong>اسم العميل:</strong> {selectedInvoice.clientName}
+              <strong>اسم العميل:</strong> {selectedInvoice.clientName || "-"}
             </p>
             <p>
-              <strong>رقم الهاتف:</strong> {selectedInvoice.phone}
+              <strong>رقم الهاتف:</strong> {selectedInvoice.phone || "-"}
             </p>
             <p>
               <strong>الموظف:</strong> {selectedInvoice.employee || "-"}
             </p>
             <p>
               <strong>التاريخ:</strong>{" "}
-              {selectedInvoice.date
-                ? new Date(selectedInvoice.date.seconds * 1000).toLocaleString(
-                    "ar-EG"
-                  )
+              {selectedInvoice.date?.seconds
+                ? new Date(
+                    selectedInvoice.date.seconds * 1000
+                  ).toLocaleString("ar-EG")
+                : selectedInvoice.date
+                ? String(selectedInvoice.date)
                 : "-"}
             </p>
           </div>
+
           <div className={styles.sidebarProducts}>
             <h5>المنتجات</h5>
-            <table>
-              <thead>
-                <tr>
-                  <th>الكود</th>
-                  <th>المنتج</th>
-                  <th>السعر</th>
-                  <th>الكمية</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedInvoice.cart?.map((item, index) => (
-                  <tr key={index}>
-                    <td>{item.code}</td>
-                    <td>
-                      {item.name} {item.color ? ` - ${item.color}` : ""}{" "}
-                      {item.size ? ` - ${item.size}` : ""}
-                    </td>
-                    <td>{item.sellPrice}</td>
-                    <td>{item.quantity}</td>
+            <div className={styles.sidebarTableWrapper}>
+              <table className={styles.sidebarTable}>
+                <thead>
+                  <tr>
+                    <th>الكود</th>
+                    <th>المنتج</th>
+                    <th>السعر</th>
+                    <th>الكمية</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {selectedInvoice.cart?.map((item, index) => (
+                    <tr key={`${item.code || index}-${index}`}>
+                      <td className={styles.codeCell}>{item.code || "-"}</td>
+                      <td className={styles.nameCell}>
+                        {item.name || "-"}
+                        {item.color ? ` - ${item.color}` : ""}
+                        {item.size ? ` - ${item.size}` : ""}
+                      </td>
+                      <td className={styles.priceCell}>
+                        {item.sellPrice || "-"} EGP
+                      </td>
+                      <td className={styles.quantityCell}>
+                        {item.quantity || "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+export default function CloseDay() {
+  return (
+    <NotificationProvider>
+      <CloseDayContent />
+    </NotificationProvider>
   );
 }

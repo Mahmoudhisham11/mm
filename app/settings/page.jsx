@@ -1,13 +1,14 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import SideBar from "@/components/SideBar/page";
 import styles from "./styles.module.css";
 import {
   collection,
-  getDocs,
+  onSnapshot,
   doc,
   updateDoc,
   getDoc,
+  getDocs,
   query,
   where,
 } from "firebase/firestore";
@@ -15,9 +16,14 @@ import { db } from "../firebase";
 import { VscPercentage } from "react-icons/vsc";
 import { useRouter } from "next/navigation";
 import Loader from "@/components/Loader/Loader";
+import {
+  NotificationProvider,
+  useNotification,
+} from "@/contexts/NotificationContext";
 
-export default function Settings() {
+function SettingsContent() {
   const router = useRouter();
+  const { success, error: showError } = useNotification();
   const [auth, setAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("usersPermissions");
@@ -25,86 +31,138 @@ export default function Settings() {
   const [employees, setEmployees] = useState([]);
   const [selectedUser, setSelectedUser] = useState("");
   const [permissions, setPermissions] = useState({
-    phones: true,
-    products: true,
+    phones: false,
+    products: false,
     masrofat: false,
-    employees: true,
+    employees: false,
     debts: false,
-    reports: true,
-    settings: true,
+    reports: false,
+    settings: false,
   });
-
-  const [isSubscribed, setIsSubscribed] = useState(false);
   const [employeePercentage, setEmployeePercentage] = useState("");
   const [currentUserName, setCurrentUserName] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
+  // التحقق من الصلاحيات
   useEffect(() => {
     const checkLock = async () => {
-      const userName = localStorage.getItem("userName");
-      if (!userName) {
-        router.push("/");
-        return;
-      }
-      setCurrentUserName(userName); // ✅ حفظ اسم المستخدم الحالي
-
-      const q = query(
-        collection(db, "users"),
-        where("userName", "==", userName)
-      );
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const user = querySnapshot.docs[0].data();
-        if (user.permissions?.settings === true) {
-          alert("ليس لديك الصلاحية للوصول الى هذه الصفحة❌");
+      try {
+        const userName = localStorage.getItem("userName");
+        if (!userName) {
           router.push("/");
           return;
-        } else {
-          setAuth(true);
         }
-      } else {
+        setCurrentUserName(userName);
+
+        const q = query(
+          collection(db, "users"),
+          where("userName", "==", userName)
+        );
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+          const user = querySnapshot.docs[0].data();
+          // إذا كان settings === true يعني محظور (ليس لديه صلاحية)
+          if (user.permissions?.settings === true) {
+            showError("ليس لديك الصلاحية للوصول إلى هذه الصفحة❌");
+            router.push("/");
+            return;
+          } else {
+            setAuth(true);
+          }
+        } else {
+          router.push("/");
+          return;
+        }
+      } catch (error) {
+        console.error("Error checking permissions:", error);
+        showError("حدث خطأ أثناء التحقق من الصلاحيات");
         router.push("/");
-        return;
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     checkLock();
-  }, []);
+  }, [router, showError]);
 
-  // ✅ جلب المستخدمين بدون المستخدم الحالي
-  const fetchUsers = async () => {
-    const querySnapshot = await getDocs(collection(db, "users"));
-    const allUsers = querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+  // جلب المستخدمين بدون المستخدم الحالي - باستخدام onSnapshot
+  useEffect(() => {
+    if (!currentUserName) return;
 
-    // استبعاد المستخدم اللي اسمه نفس الموجود في localStorage
-    const filteredUsers = allUsers.filter(
-      (u) => u.userName !== currentUserName
+    const unsub = onSnapshot(
+      collection(db, "users"),
+      (snapshot) => {
+        const allUsers = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
+        // استبعاد المستخدم الحالي
+        const filteredUsers = allUsers.filter(
+          (u) => u.userName !== currentUserName
+        );
+
+        setUsers(filteredUsers);
+      },
+      (error) => {
+        console.error("Error fetching users:", error);
+        showError("حدث خطأ أثناء جلب المستخدمين");
+      }
     );
 
-    setUsers(filteredUsers);
-  };
+    return () => unsub();
+  }, [currentUserName, showError]);
 
-  const fetchEmployees = async () => {
-    const querySnapshot = await getDocs(collection(db, "employees"));
-    const empData = querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    setEmployees(empData);
-  };
-
+  // جلب الموظفين - باستخدام onSnapshot
   useEffect(() => {
-    if (currentUserName) {
-      fetchUsers();
-      fetchEmployees();
-    }
-  }, [currentUserName]);
+    const unsub = onSnapshot(
+      collection(db, "employees"),
+      (snapshot) => {
+        const empData = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setEmployees(empData);
+      },
+      (error) => {
+        console.error("Error fetching employees:", error);
+        showError("حدث خطأ أثناء جلب الموظفين");
+      }
+    );
 
+    return () => unsub();
+  }, [showError]);
+
+  // إعادة تعيين selectedUser عند تغيير التبويب
+  useEffect(() => {
+    setSelectedUser("");
+    setPermissions({
+      phones: false,
+      products: false,
+      masrofat: false,
+      employees: false,
+      debts: false,
+      reports: false,
+      settings: false,
+    });
+    setEmployeePercentage("");
+  }, [activeTab]);
+
+  // تحميل الصلاحيات عند اختيار مستخدم
   useEffect(() => {
     const loadPermissions = async () => {
-      if (!selectedUser) return;
+      if (!selectedUser) {
+        setPermissions({
+          phones: false,
+          products: false,
+          masrofat: false,
+          employees: false,
+          debts: false,
+          reports: false,
+          settings: false,
+        });
+        return;
+      }
 
       try {
         const userRef = doc(db, "users", selectedUser);
@@ -123,103 +181,107 @@ export default function Settings() {
               settings: false,
             }
           );
-
-          setIsSubscribed(userData.isSubscribed || false);
         }
       } catch (err) {
         console.error("Error loading user permissions: ", err);
+        showError("حدث خطأ أثناء تحميل الصلاحيات");
       }
     };
 
     loadPermissions();
-  }, [selectedUser]);
+  }, [selectedUser, showError]);
 
-  const handlePermissionChange = (key) => {
-    setPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const handleSavePermissions = async () => {
-    if (!selectedUser) {
-      alert("يرجى اختيار مستخدم أولًا");
-      return;
-    }
-
-    try {
-      const userRef = doc(db, "users", selectedUser);
-      await updateDoc(userRef, { permissions });
-      alert("تم حفظ الصلاحيات بنجاح ✅");
-      await fetchUsers();
-    } catch (error) {
-      console.error("Error saving permissions: ", error);
-      alert("حدث خطأ أثناء الحفظ ❌");
-    }
-  };
-
-  const handleActivationChange = async () => {
-    if (!selectedUser) {
-      alert("يرجى اختيار مستخدم أولًا");
-      return;
-    }
-
-    const newStatus = !isSubscribed;
-    setIsSubscribed(newStatus);
-
-    try {
-      const userRef = doc(db, "users", selectedUser);
-      await updateDoc(userRef, { isSubscribed: newStatus });
-      alert(`تم ${newStatus ? "تفعيل" : "إلغاء تفعيل"} المستخدم بنجاح ✅`);
-      await fetchUsers();
-    } catch (error) {
-      console.error("Error updating subscription: ", error);
-      alert("حدث خطأ أثناء تحديث التفعيل ❌");
-    }
-  };
-
-  const fetchEmployeePercentage = async (employeeId) => {
-    if (!employeeId) {
-      setEmployeePercentage("");
-      return;
-    }
-    try {
-      const empRef = doc(db, "employees", employeeId);
-      const empSnap = await getDoc(empRef);
-      if (empSnap.exists()) {
-        const data = empSnap.data();
-        setEmployeePercentage(data.percentage || "");
-      } else {
+  // جلب نسبة الموظف
+  const fetchEmployeePercentage = useCallback(
+    async (employeeId) => {
+      if (!employeeId) {
         setEmployeePercentage("");
+        return;
       }
-    } catch (error) {
-      console.error("Error fetching employee percentage:", error);
-    }
-  };
-
-  const handleSaveEmployeePercentage = async () => {
-    if (!selectedUser) {
-      alert("يرجى اختيار الموظف أولًا");
-      return;
-    }
-    if (employeePercentage === "") {
-      alert("يرجى إدخال النسبة للموظف");
-      return;
-    }
-
-    try {
-      const empRef = doc(db, "employees", selectedUser);
-      await updateDoc(empRef, { percentage: Number(employeePercentage) });
-      alert("تم حفظ نسبة الموظف بنجاح ✅");
-      fetchEmployees();
-    } catch (error) {
-      console.error("Error saving employee percentage:", error);
-      alert("حدث خطأ أثناء حفظ النسبة ❌");
-    }
-  };
+      try {
+        const empRef = doc(db, "employees", employeeId);
+        const empSnap = await getDoc(empRef);
+        if (empSnap.exists()) {
+          const data = empSnap.data();
+          setEmployeePercentage(data.percentage?.toString() || "");
+        } else {
+          setEmployeePercentage("");
+        }
+      } catch (error) {
+        console.error("Error fetching employee percentage:", error);
+        showError("حدث خطأ أثناء جلب نسبة الموظف");
+      }
+    },
+    [showError]
+  );
 
   useEffect(() => {
     if (activeTab === "percentage" && selectedUser) {
       fetchEmployeePercentage(selectedUser);
     }
-  }, [selectedUser, activeTab]);
+  }, [selectedUser, activeTab, fetchEmployeePercentage]);
+
+  const handlePermissionChange = useCallback((key) => {
+    setPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const handleSavePermissions = useCallback(async () => {
+    if (!selectedUser) {
+      showError("يرجى اختيار مستخدم أولًا");
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const userRef = doc(db, "users", selectedUser);
+      await updateDoc(userRef, { permissions });
+      success("✅ تم حفظ الصلاحيات بنجاح");
+    } catch (error) {
+      console.error("Error saving permissions: ", error);
+      showError("حدث خطأ أثناء الحفظ ❌");
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [selectedUser, permissions, success, showError]);
+
+  const handleSaveEmployeePercentage = useCallback(async () => {
+    if (!selectedUser) {
+      showError("يرجى اختيار الموظف أولًا");
+      return;
+    }
+
+    const percentage = Number(employeePercentage);
+    if (
+      employeePercentage === "" ||
+      isNaN(percentage) ||
+      percentage < 0 ||
+      percentage > 100
+    ) {
+      showError("يرجى إدخال نسبة صحيحة بين 0 و 100");
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const empRef = doc(db, "employees", selectedUser);
+      await updateDoc(empRef, { percentage });
+      success("✅ تم حفظ نسبة الموظف بنجاح");
+      setEmployeePercentage(percentage.toString());
+    } catch (error) {
+      console.error("Error saving employee percentage:", error);
+      showError("حدث خطأ أثناء حفظ النسبة ❌");
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [selectedUser, employeePercentage, success, showError]);
+
+  const handleTabChange = useCallback((tab) => {
+    setActiveTab(tab);
+  }, []);
+
+  const selectedEmployee = useMemo(() => {
+    return employees.find((e) => e.id === selectedUser);
+  }, [employees, selectedUser]);
 
   if (loading) return <Loader />;
   if (!auth) return null;
@@ -228,42 +290,39 @@ export default function Settings() {
     <div className={styles.settings}>
       <SideBar />
       <div className={styles.content}>
-        <div className={styles.title}>
-          <h2>الإعدادات</h2>
+        <div className={styles.header}>
+          <h2 className={styles.title}>الإعدادات</h2>
         </div>
 
         <div className={styles.tabs}>
           <button
-            className={activeTab === "usersPermissions" ? styles.active : ""}
-            onClick={() => setActiveTab("usersPermissions")}
+            className={
+              activeTab === "usersPermissions" ? styles.activeTab : ""
+            }
+            onClick={() => handleTabChange("usersPermissions")}
           >
             صلاحيات المستخدمين
           </button>
           <button
-            className={activeTab === "usersActivations" ? styles.active : ""}
-            onClick={() => setActiveTab("usersActivations")}
-          >
-            تفعيلات المستخدمين
-          </button>
-          <button
-            className={activeTab === "percentage" ? styles.active : ""}
-            onClick={() => setActiveTab("percentage")}
+            className={activeTab === "percentage" ? styles.activeTab : ""}
+            onClick={() => handleTabChange("percentage")}
           >
             نسبة الموظفين
           </button>
         </div>
 
-        {/* ✅ صلاحيات المستخدمين */}
+        {/* صلاحيات المستخدمين */}
         {activeTab === "usersPermissions" && (
           <div className={styles.container}>
             <div className={styles.contentContainer}>
-              <div className={styles.top}>
-                <div className="inputContainer">
+                <div className={styles.inputContainer}>
+                  <label className={styles.inputLabel}>اسم المستخدم</label>
                   <select
                     value={selectedUser}
                     onChange={(e) => setSelectedUser(e.target.value)}
+                    className={styles.selectInput}
                   >
-                    <option value="">-- اسم المستخدم --</option>
+                    <option value="">-- اختر المستخدم --</option>
                     {users.map((user) => (
                       <option key={user.id} value={user.id}>
                         {user.userName || "مستخدم بدون اسم"}
@@ -271,85 +330,63 @@ export default function Settings() {
                     ))}
                   </select>
                 </div>
-                <div className={styles.checkContent}>
-                  {[
-                    { key: "products", label: "صفحة المنتجات" },
-                    { key: "masrofat", label: "صفحة المصاريف" },
-                    { key: "employees", label: "صفحة الموظفين" },
-                    { key: "debts", label: "صفحة فواتير البضاعة" },
-                    { key: "reports", label: "صفحة المرتجعات" },
-                    { key: "settings", label: "صفحة الإعدادات" },
-                  ].map((item) => (
-                    <label key={item.key} className={styles.checkboxContainer}>
-                      <input
-                        type="checkbox"
-                        checked={permissions[item.key] || false}
-                        onChange={() => handlePermissionChange(item.key)}
-                      />
-                      {item.label}
-                      <span className={styles.checkmark}></span>
-                    </label>
-                  ))}
-                </div>
+
+              <div className={styles.checkContent}>
+                {[
+                  { key: "products", label: "صفحة المنتجات" },
+                  { key: "masrofat", label: "صفحة المصاريف" },
+                  { key: "employees", label: "صفحة الموظفين" },
+                  { key: "debts", label: "صفحة فواتير البضاعة" },
+                  { key: "reports", label: "صفحة المرتجعات" },
+                  { key: "settings", label: "صفحة الإعدادات" },
+                ].map((item) => (
+                  <label key={item.key} className={styles.checkboxContainer}>
+                    <input
+                      type="checkbox"
+                      checked={permissions[item.key] || false}
+                      onChange={() => handlePermissionChange(item.key)}
+                    />
+                    <span className={styles.checkmark}></span>
+                    <span>{item.label}</span>
+                  </label>
+                ))}
               </div>
+
               <button
                 className={styles.saveBtn}
                 onClick={handleSavePermissions}
+                disabled={isProcessing}
               >
-                حفظ
+                {isProcessing ? "جاري الحفظ..." : "حفظ"}
               </button>
             </div>
           </div>
         )}
 
-        {/* ✅ تفعيلات المستخدمين */}
-        {activeTab === "usersActivations" && (
-          <div className={styles.container}>
-            <div className={styles.contentContainer}>
-              <div className={styles.top}>
-                <div className="inputContainer">
-                  <select
-                    value={selectedUser}
-                    onChange={(e) => setSelectedUser(e.target.value)}
-                  >
-                    <option value="">-- اسم المستخدم --</option>
-                    {users.map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.userName || "مستخدم بدون اسم"}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={styles.checkContent}>
-                  <label className={styles.checkboxContainer}>
-                    <input
-                      type="checkbox"
-                      checked={isSubscribed}
-                      onChange={handleActivationChange}
-                    />
-                    تفعيل المستخدم
-                    <span className={styles.checkmark}></span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ✅ نسبة الموظفين */}
+        {/* نسبة الموظفين */}
         {activeTab === "percentage" && (
           <div className={styles.container}>
             <div className={styles.contentContainer}>
-              <h4>نسبة كل موظف</h4>
-              <div className={styles.top}>
+              <h3 className={styles.percentageTitle}>
+                نسبة الموظف
+                {selectedUser && selectedEmployee && (
+                  <span className={styles.percentageValue}>
+                    {employeePercentage !== ""
+                      ? `: ${employeePercentage}%`
+                      : ": لا توجد نسبة محفوظة"}
+                  </span>
+                )}
+              </h3>
+
+              <div className={styles.inputContainer}>
+                <label className={styles.inputLabel}>الموظف</label>
                 <select
-                  className="inputContainer"
                   value={selectedUser}
                   onChange={(e) => {
                     setSelectedUser(e.target.value);
                     fetchEmployeePercentage(e.target.value);
                   }}
+                  className={styles.selectInput}
                 >
                   <option value="">-- اختر الموظف --</option>
                   {employees.map((emp) => (
@@ -358,53 +395,43 @@ export default function Settings() {
                     </option>
                   ))}
                 </select>
-
-                {selectedUser && (
-                  <>
-                    <div className={styles.cardContainer}>
-                      <div className={styles.card}>
-                        <h4>
-                          نسبة{" "}
-                          {employees.find((e) => e.id === selectedUser)?.name ||
-                            "الموظف"}
-                        </h4>
-                        <p>
-                          {employeePercentage !== ""
-                            ? `${employeePercentage}%`
-                            : "لا توجد نسبة محفوظة لهذا الموظف"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div
-                      className="inputContainer"
-                      style={{ marginTop: "15px" }}
-                    >
-                      <label>
-                        <VscPercentage />
-                      </label>
-                      <input
-                        type="number"
-                        placeholder="نسبة الموظف"
-                        value={employeePercentage}
-                        onChange={(e) => setEmployeePercentage(e.target.value)}
-                      />
-                    </div>
-                  </>
-                )}
               </div>
+
+              {selectedUser && (
+                <div className="inputContainer">
+                  <label>
+                    <VscPercentage />
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="نسبة الموظف (0-100)"
+                    value={employeePercentage}
+                    onChange={(e) => setEmployeePercentage(e.target.value)}
+                    min="0"
+                    max="100"
+                  />
+                </div>
+              )}
 
               <button
                 className={styles.saveBtn}
-                style={{ marginTop: "10px" }}
                 onClick={handleSaveEmployeePercentage}
+                disabled={isProcessing || !selectedUser}
               >
-                حفظ نسبة الموظف
+                {isProcessing ? "جاري الحفظ..." : "حفظ نسبة الموظف"}
               </button>
             </div>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+export default function Settings() {
+  return (
+    <NotificationProvider>
+      <SettingsContent />
+    </NotificationProvider>
   );
 }

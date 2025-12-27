@@ -1,159 +1,379 @@
+/* ============================================
+   MAIN CONTAINER & LAYOUT
+   ============================================ */
+
 .mainContainer {
   width: 100%;
   min-height: 100vh;
   display: flex;
   justify-content: start;
   align-items: start;
+  background-color: var(--background);
 }
-.middleSection {
-  width: 60%;
-  min-height: 100vh;
-  padding: 30px 20px;
+
+/* ============================================
+   CONTENT AREA (Main Section)
+   ============================================ */
+
+.content {
+  width: 70%;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
-.title {
+
+/* ============================================
+   HEADER SECTION
+   ============================================ */
+
+.header {
   width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-.title h3 {
-  white-space: nowrap;
-  font-size: 25px;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 20px;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
 }
 
-.rightSide {
+.headerLeft {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
-.rightSide button {
-  display: none;
-  background-color: transparent;
-  border: none;
-  color: black;
-  font-size: 20px;
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
 }
-.leftSide {
+
+.headerActions {
   display: flex;
-  justify-content: center;
+  gap: 12px;
   align-items: center;
-  gap: 20px;
 }
-/* ✅ حقل البحث */
+
+/* ============================================
+   MENU BUTTON (Mobile Only)
+   ============================================ */
+
+.menuBtn {
+  display: none !important;
+}
+
+/* ============================================
+   SEARCH BOX
+   ============================================ */
+
 .searchBox {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #fff;
-  border-radius: 8px;
-  padding: 10px 20px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 400px;
-  transition: box-shadow 0.2s ease;
-}
-
-.searchBox:focus-within {
-  box-shadow: 0 3px 15px rgba(0, 0, 0, 0.2);
-}
-
-.searchBox svg {
-  font-size: 20px;
-  color: var(--main-color);
-}
-
-.searchBox input {
-  border: none;
-  outline: none;
-  flex: 1;
-  font-size: 16px;
-  color: #333;
-  background: transparent;
-}
-.searchBox input::placeholder {
-  color: #aaa;
-  font-size: 15px;
-}
-.headerBtns {
   display: flex;
-  justify-content: center;
+  gap: 12px;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  padding: 20px;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
 }
-.headerBtns button {
-  border: none;
-  cursor: pointer;
+
+.searchContainer {
+  flex: 1;
+  min-width: 200px;
+  position: relative;
+  display: flex;
+  align-items: center;
 }
+
+.searchIcon {
+  position: absolute;
+  right: 12px;
+  font-size: 20px;
+  color: var(--text-tertiary);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 12px 16px;
+  padding-right: 40px;
+  font-size: 15px;
+  font-family: "Tajawal", sans-serif;
+  color: var(--text-primary);
+  background: var(--surface-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.searchInput:focus {
+  border-color: var(--main-color);
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+  background: var(--surface);
+}
+
+[data-theme="dark"] .searchInput:focus {
+  box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.2);
+}
+
+/* ============================================
+   HEADER BUTTONS
+   ============================================ */
+
 .eyeBtn {
   width: 50px;
-  height: 30px;
-  background-color: whitesmoke;
-  color: black;
+  height: 36px;
+  background-color: var(--surface-hover) !important;
+  color: var(--text-primary) !important;
   font-size: 18px;
-  border-radius: 8px;
+  border-radius: 10px;
   display: flex;
   justify-content: center;
   align-items: center;
-  transition: 0.3s;
+  transition: all 0.3s ease;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
 }
+
 .eyeBtn:hover {
-  background-color: white;
+  background-color: var(--main-color);
+  color: white;
+  border-color: var(--main-color);
+  transform: translateY(-2px);
 }
-.closeDay {
+
+.closeDay,
+.sallesBtn {
+  width: 100px !important;
   white-space: nowrap;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 18px;
-  background-color: var(--main-color);
-  color: white;
-  border-radius: 8px;
-  padding: 5px;
-  transition: 0.3s;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  background: linear-gradient(
+    135deg,
+    var(--main-color),
+    var(--main-color-hover)
+  );
+  color: white !important;
+  border-radius: 10px;
+  padding: 10px 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  font-family: "Tajawal", sans-serif;
 }
-.closeDay:hover {
-  background-color: var(--hover-color);
+
+.closeDay:hover:not(:disabled),
+.sallesBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  background: linear-gradient(
+    135deg,
+    var(--main-color-hover),
+    var(--main-color)
+  );
 }
+
+/* زر فتح المبيعات - يظهر في mobile فقط */
 .sallesBtn {
-  white-space: nowrap;
-  display: none;
-  font-size: 18px;
-  background-color: var(--main-color);
-  color: white;
-  border-radius: 8px;
-  padding: 5px;
-  transition: 0.3s;
+  display: none !important;
 }
-.tableContainer {
+
+/* ============================================
+   SUMMARY CARDS (Statistics)
+   ============================================ */
+
+.summaryCards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: flex-start;
+}
+
+.summaryCard {
+  flex: 1;
+  min-width: 200px;
+  max-width: 300px;
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 20px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.3s ease;
+}
+
+.summaryCard:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--main-color);
+}
+
+.summaryLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.summaryValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: "Courier New", monospace;
+}
+
+/* ============================================
+   TABLE WRAPPER & INVOICE TABLE
+   ============================================ */
+
+.tableWrapper {
   width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
 }
-/* ==================== الفاتورة (Invoice Sidebar) ==================== */
+
+.invoiceTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+}
+
+.invoiceTable th {
+  padding: 16px 12px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--surface-hover);
+  border-bottom: 2px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.invoiceTable td {
+  padding: 16px 12px;
+  text-align: right;
+  font-size: 14px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.invoiceTable tbody tr {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.invoiceTable tbody tr:hover {
+  background-color: var(--surface-hover);
+}
+
+.invoiceTable tbody tr.selectedRow {
+  background-color: rgba(25, 118, 210, 0.1);
+  border-left: 3px solid var(--main-color);
+}
+
+/* Table Cell Styles */
+.invoiceCell {
+  font-weight: 600;
+  color: var(--main-color) !important;
+  font-family: "Courier New", monospace;
+  text-align: center;
+}
+
+.clientCell {
+  font-weight: 600;
+  color: var(--text-primary) !important;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.phoneCell {
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: center;
+}
+
+.employeeCell {
+  font-weight: 500;
+  color: var(--text-primary) !important;
+  text-align: center;
+}
+
+.totalCell {
+  font-weight: 600;
+  color: var(--text-primary) !important;
+  font-family: "Courier New", monospace;
+}
+
+.dateCell {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.emptyCell {
+  padding: 60px 20px !important;
+  text-align: center;
+}
+
+/* ============================================
+   CART SIDEBAR (Invoice Content)
+   ============================================ */
+
 .resetContainer {
   position: sticky;
   top: 0;
-  width: 25%;
+  width: 30%;
   min-height: 100vh;
   background-color: transparent;
   padding: 10px;
   font-family: "Cairo", sans-serif;
+  display: block !important;
+  visibility: visible !important;
 }
 
 .reset {
   width: 100%;
   height: calc(100vh - 20px);
-  background: linear-gradient(180deg, #ffffff, #f9fbff);
+  background: var(--surface);
+  border: 1px solid var(--border-color);
   border-radius: 18px;
   padding: 20px;
   display: flex;
   justify-content: start;
   flex-direction: column;
   gap: 20px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.07);
+  box-shadow: var(--shadow-md);
   transition: all 0.3s ease;
 }
 
-/* ==================== العنوان ==================== */
+/* Cart Header */
 .topReset {
   display: flex;
   flex-direction: column;
@@ -171,29 +391,36 @@
 .resetTitle h3 {
   font-size: 21px;
   font-weight: 700;
-  color: #222;
+  color: var(--text-heading);
   letter-spacing: 0.3px;
 }
 
+/* زر الإغلاق في الـ Cart - يظهر في mobile فقط */
 .resetTitle button {
   border-radius: 10px;
   border: none;
-  background: var(--main-color);
-  color: #fff;
-  font-size: 15px;
+  background: var(--button-primary-bg);
+  color: var(--text-on-primary);
+  font-size: 18px;
   cursor: pointer;
-  padding: 7px 14px;
-  transition: all 0.25s ease;
+  padding: 8px;
+  width: 36px;
+  height: 36px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-weight: 600;
-  box-shadow: 0 3px 8px rgba(25, 118, 210, 0.2);
+  box-shadow: var(--shadow-sm);
 }
 
 .resetTitle button:hover {
-  background-color: #1259a5;
-  transform: scale(1.05);
+  background: var(--button-primary-hover);
+  transform: scale(1.1);
+  box-shadow: var(--shadow-md);
 }
 
-/* ==================== الأدوات العلوية ==================== */
+/* Cart Actions (Search & Delete) */
 .resetActions {
   width: 100%;
   display: flex;
@@ -204,25 +431,35 @@
 
 .inputBox {
   flex: 1;
-  height: 42px;
-  background-color: #f3f6fa;
+  min-height: 42px;
+  background: var(--input-bg);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   border-radius: 10px;
-  border: 1.5px solid #d5dce6;
+  border: 1.5px solid var(--input-border);
   padding: 0 12px;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
 }
 
 .inputBox:hover {
-  border-color: var(--main-color);
-  background-color: #eef4ff;
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-sm);
+}
+
+.inputBox:focus-within {
+  border-color: var(--input-focus-border);
+  box-shadow: var(--shadow-focus);
+  background: var(--surface);
 }
 
 .inputBox label {
   font-size: 20px;
   color: var(--main-color);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 
 .inputBox input {
@@ -231,29 +468,45 @@
   outline: none;
   font-size: 15px;
   width: 100%;
-  color: #333;
+  color: var(--text-primary);
+  font-family: "Tajawal", sans-serif;
+}
+
+.inputBox input::placeholder {
+  color: var(--text-tertiary);
+  opacity: 0.7;
 }
 
 .resetActions button {
   border-radius: 10px;
-  border: none;
-  background: linear-gradient(145deg, #f5f7fa, #eaeef3);
-  color: #333;
+  border: 1px solid var(--border-color);
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
   font-size: 14px;
   cursor: pointer;
-  padding: 8px 12px;
-  transition: all 0.25s ease;
+  padding: 8px 16px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-weight: 600;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-sm);
+  font-family: "Tajawal", sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .resetActions button:hover {
-  background: var(--main-color);
-  color: white;
-  transform: translateY(-1px);
+  background: linear-gradient(
+    135deg,
+    var(--main-color),
+    var(--main-color-hover)
+  );
+  color: var(--text-on-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--main-color);
 }
 
-/* ==================== قائمة المنتجات ==================== */
+/* Cart Items List */
 .orderBox {
   width: 100%;
   height: calc(100vh - 420px);
@@ -268,32 +521,37 @@
 
 .ordersContainer {
   width: 100%;
-  display: flex;
+  display: flex ;
   justify-content: space-between;
   align-items: center;
-  background-color: #fafcff;
+  background-color: var(--surface);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 10px;
+  padding: 12px;
   transition: all 0.3s ease;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-sm);
 }
 
 .ordersContainer:hover {
-  background-color: #eef6ff;
-  transform: scale(1.01);
+  background-color: var(--surface-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--main-color);
 }
 
 .orderInfo {
   width: 100%;
+  height: 50px;
   display: flex;
   justify-content: space-between;
   align-items: start;
   gap: 10px;
 }
 
-.content {
+.orderContent {
   display: flex;
-  align-items: center;
+  justify-content: start;
+  align-items: start;
   gap: 8px;
 }
 
@@ -306,7 +564,6 @@
   border: none;
   border-radius: 8px;
   background-color: rgba(252, 57, 57, 0.12);
-  color: red;
   cursor: pointer;
   font-size: 15px;
   transition: all 0.25s ease;
@@ -314,29 +571,31 @@
 
 .content button:hover {
   color: #fff;
-  background-color: red;
   transform: scale(1.1);
 }
 
 .text {
   display: flex;
   flex-direction: column;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .text h4 {
   font-size: 16px;
   margin: 0;
   font-weight: 600;
+  color: var(--text-heading);
+  line-height: 1.4;
 }
 
 .text p {
-  color: #444;
+  color: var(--text-secondary);
   font-size: 14px;
   margin-top: 4px;
+  line-height: 1.5;
 }
 
-/* ==================== أزرار الكمية ==================== */
+/* Quantity Controls */
 .qtyInput {
   display: flex;
   align-items: center;
@@ -344,35 +603,41 @@
 }
 
 .qtyInput button {
-  background: #f2f4f8;
-  border: 1px solid #ccc;
+  background: var(--surface-hover);
+  border: 1px solid var(--border-color);
   font-size: 16px;
   cursor: pointer;
   border-radius: 8px;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   transition: all 0.25s ease;
   font-weight: bold;
+  color: var(--text-primary);
 }
 
 .qtyInput button:hover {
-  background: var(--main-color);
-  color: #fff;
-  transform: scale(1.05);
+  background: linear-gradient(
+    135deg,
+    var(--main-color),
+    var(--main-color-hover)
+  );
+  color: white;
+  border-color: var(--main-color);
+  transform: scale(1.1);
 }
 
 .qtyInput input {
-  width: 30px;
+  width: 40px;
   text-align: center;
   background-color: transparent;
   border: none;
   outline: none;
   font-size: 15px;
   font-weight: 600;
-  color: #222;
+  color: var(--text-primary);
 }
 
-/* ==================== الإجمالي ==================== */
+/* Cart Total Section */
 .totalContainer {
   width: 100%;
   height: 140px;
@@ -383,31 +648,30 @@
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
-  gap: 6px;
+  gap: 8px;
   padding-top: 10px;
-  color: #222;
+  color: var(--text-primary);
 }
 
 .totalBox h3 {
   font-size: 18px;
   font-weight: 700;
-  color: #111;
+  color: var(--text-heading);
 }
 
 .totalBox strong {
-  font-size: 22px;
+  font-size: 24px;
   color: var(--main-color);
   font-weight: 800;
 }
 
-/* ربح الفاتورة والخصم */
 .totalBox div strong {
   font-weight: 600;
   font-size: 14px;
-  color: #555;
+  color: var(--text-secondary);
 }
 
-/* ==================== الأزرار السفلية ==================== */
+/* Cart Bottom Buttons */
 .resetBtns {
   width: 100%;
   display: flex;
@@ -420,82 +684,349 @@
 .resetBtns button {
   width: 100%;
   font-size: 16px;
-  padding: 10px;
+  padding: 12px 20px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-weight: 700;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.05);
-}
-
-/* زر الحفظ */
-.resetBtns button:first-child {
-  background: linear-gradient(145deg, #e8f2ff, #d7eaff);
-  color: #1976d2;
-}
-.resetBtns button:first-child:hover {
-  background: var(--main-color);
-  color: #fff;
-  transform: translateY(-1px);
-}
-.tableInput {
-  background-color: transparent;
-  border: none;
-  outline: none;
-}
-.popupOverlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5); /* خلفية شفافة */
+  box-shadow: var(--shadow-sm);
+  font-family: "Tajawal", sans-serif;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000; /* فوق كل العناصر */
-  animation: fadeIn 0.2s ease-in-out;
+  gap: 8px;
+}
+
+.resetBtns button:first-child {
+  background: linear-gradient(
+    135deg,
+    var(--main-color),
+    var(--main-color-hover)
+  );
+  color: var(--text-on-primary);
+}
+
+.resetBtns button:first-child:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  background: linear-gradient(
+    135deg,
+    var(--main-color-hover),
+    var(--main-color)
+  );
+}
+
+/* ============================================
+   INVOICE DETAILS SIDEBAR
+   ============================================ */
+
+.invoiceSidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 400px;
+  height: 100vh;
+  background: var(--surface);
+  border-left: 1px solid var(--border-color);
+  box-shadow: var(--shadow-lg);
+  padding: 25px;
+  overflow-y: auto;
+  z-index: 1000;
+  border-top-left-radius: 20px;
+  border-bottom-left-radius: 20px;
+  animation: slideIn 0.35s ease forwards;
+}
+
+.sidebarHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 12px;
+  margin-bottom: 15px;
+}
+
+.sidebarHeader h4 {
+  margin: 0;
+  color: var(--text-heading);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.sidebarHeader button {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 20px;
+}
+
+.sidebarHeader button:hover {
+  color: var(--main-color);
+  transform: rotate(90deg);
+}
+
+.sidebarInfo {
+  background: var(--surface-hover);
+  padding: 15px 12px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 20px;
+  border: 1px solid var(--border-color);
+}
+
+.sidebarInfo p {
+  margin: 6px 0;
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.sidebarInfo strong {
+  color: var(--text-heading);
+  font-weight: 600;
+  margin-left: 5px;
+}
+
+.sidebarProducts {
+  margin-top: 15px;
+}
+
+.sidebarProducts h5 {
+  color: var(--text-primary);
+  margin-bottom: 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sidebarProducts table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  background: var(--surface);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.sidebarProducts th,
+.sidebarProducts td {
+  border-bottom: 1px solid var(--border-color);
+  padding: 12px 10px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.sidebarProducts th {
+  background: linear-gradient(
+    135deg,
+    var(--main-color),
+    var(--main-color-hover)
+  );
+  color: var(--text-on-primary);
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.sidebarProducts td {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.sidebarProducts tbody tr {
+  transition: all 0.2s ease;
+}
+
+.sidebarProducts tbody tr:hover {
+  background-color: var(--surface-hover);
+  transform: scale(1.01);
+}
+
+.sidebarProducts tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.sidebarProducts tbody tr:nth-child(even) {
+  background-color: var(--surface-hover);
+}
+
+.sidebarProducts tbody tr:nth-child(even):hover {
+  background-color: var(--surface-hover);
+  opacity: 0.95;
+}
+
+.invoiceSidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.invoiceSidebar::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 6px;
+}
+
+.invoiceSidebar::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
+.returnBtn {
+  background-color: #ff4d4d;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.returnBtn:hover {
+  background-color: #ff6b6b;
+  transform: scale(1.05);
+}
+
+/* ============================================
+   MODALS & POPUPS
+   ============================================ */
+
+.popupOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  animation: fadeIn 0.3s ease;
 }
 
 .popupBox {
-  background: #fff;
-  padding: 25px 30px;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
   border-radius: 16px;
-  width: 90%;
-  max-width: 400px;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
-  animation: popIn 0.25s ease-in-out;
+  padding: 24px 28px;
+  width: 380px;
+  max-width: 90%;
+  box-shadow: var(--shadow-lg);
+  animation: slideUp 0.3s ease;
+  font-family: "Cairo", sans-serif;
 }
 
 .popupBox h3 {
+  margin-bottom: 16px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-primary);
   text-align: center;
-  margin-bottom: 20px;
-  color: #333;
 }
 
 .popupBox label {
-  display: block;
-  margin-bottom: 5px;
   font-weight: 600;
   color: #444;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.popupBox button {
+  transition: all 0.2s ease;
+}
+
+.popupBox button:hover {
+  background-color: #f0f0f0;
+  transform: scale(1.05);
+}
+
+.popupBox div button {
+  font-size: 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: all 0.3s ease;
+}
+
+.popupBox div button:active {
+  transform: scale(0.96);
+}
+
+.popupBox > div:last-child button {
+  background-color: #007bff;
+  color: #fff;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.popupBox > div:last-child button:first-child {
+  background-color: #ccc;
+  color: #333;
+}
+
+.popupBox > div:last-child button:hover {
+  background-color: #0056b3;
 }
 
 .popupBox input,
 .popupBox select {
   width: 100%;
-  padding: 10px;
+  padding: 12px 16px;
   margin-bottom: 15px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
+  border: 1.5px solid var(--input-border);
+  border-radius: 10px;
   font-size: 15px;
   outline: none;
-  transition: border 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-family: "Tajawal", sans-serif;
+  box-shadow: var(--shadow-sm);
+}
+
+.popupBox input:hover,
+.popupBox select:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-sm);
 }
 
 .popupBox input:focus,
 .popupBox select:focus {
-  border-color: #007bff;
+  border-color: var(--input-focus-border);
+  box-shadow: var(--shadow-focus);
+  background: var(--surface);
+}
+
+.popupBox input::placeholder {
+  color: var(--text-tertiary);
+  opacity: 0.7;
+}
+
+.popupBox input[type="number"] {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 6px;
+  text-align: center;
+  font-size: 1rem;
+  width: 70px;
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.popupBox input[type="number"]:focus {
+  outline: none;
+  border-color: var(--main-color);
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
 }
 
 .popupBtns {
@@ -532,351 +1063,384 @@
   background-color: #aaa;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
+/* ============================================
+   MODAL INPUTS & SELECTS
+   ============================================ */
 
-@keyframes popIn {
-  from {
-    transform: scale(0.9);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-.cardsContainer {
+.modalInput {
   width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  margin: 35px 0;
-}
-
-.card {
-  flex: 1;
-  width: 400px;
-  height: 100px;
-  background: linear-gradient(135deg, var(--main-color), #2c3e50);
-  color: #fff;
-  border-radius: 15px;
-  padding: 20px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  text-align: center;
-}
-
-.card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-}
-
-.card h4 {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 10px;
-  letter-spacing: 0.5px;
-  color: #f0f0f0;
-}
-
-.card p {
-  white-space: nowrap;
-  font-size: 20px;
-  font-weight: bold;
-  margin: 0;
-  color: #fff;
-}
-.salesContainer {
-  position: relative;
-}
-
-.salesContainer h3 {
-  margin-bottom: 10px;
-  color: #222;
-}
-.invoiceSidebar {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: 370px;
-  height: 100vh;
-  background: #fff;
-  box-shadow: -4px 0 15px rgba(0, 0, 0, 0.15);
-  padding: 20px;
-  overflow-y: auto;
-  z-index: 1000;
-  animation: slideIn 0.3s ease forwards;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-/* ✅ الحاوية الجانبية للفاتورة */
-.invoiceSidebar {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: 400px;
-  height: 100vh;
-  background: #fff;
-  box-shadow: -5px 0 20px rgba(0, 0, 0, 0.1);
-  padding: 25px;
-  overflow-y: auto;
-  z-index: 1000;
-  border-top-left-radius: 20px;
-  border-bottom-left-radius: 20px;
-  animation: slideIn 0.35s ease forwards;
-}
-
-/* ✅ انيميشن ناعم لظهور النافذة */
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-/* ✅ ترويسة النافذة */
-.sidebarHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 2px solid #f0f0f0;
-  padding-bottom: 12px;
-  margin-bottom: 15px;
-}
-
-.sidebarHeader h4 {
-  margin: 0;
-  color: var(--main-color);
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.sidebarHeader button {
-  background: none;
-  border: none;
-  color: #888;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.sidebarHeader button:hover {
-  color: var(--main-color);
-  transform: rotate(90deg);
-}
-
-/* ✅ تفاصيل العميل */
-.sidebarInfo {
-  background: #fafafa;
-  padding: 15px 12px;
-  border-radius: 12px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-  margin-bottom: 20px;
-}
-
-.sidebarInfo p {
-  margin: 6px 0;
-  font-size: 15px;
-  color: #333;
-  line-height: 1.6;
-}
-
-.sidebarInfo strong {
-  color: #000;
-}
-
-/* ✅ جدول المنتجات */
-.sidebarProducts {
-  margin-top: 15px;
-}
-
-.sidebarProducts h5 {
-  color: #222;
-  margin-bottom: 10px;
+  padding: 12px;
+  border: var(--modal-button-border-input);
+  border-radius: 8px;
   font-size: 16px;
-  font-weight: 600;
+  color: var(--text-color);
+  background-color: var(--input-bg);
+  transition: all 0.3s ease;
 }
 
-.sidebarProducts table {
+.modalInput:focus {
+  border-color: var(--main-color);
+  box-shadow: var(--modal-button-shadow-input-focus);
+  outline: none;
+}
+
+.modalSelect {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-  background: #fff;
-  border-radius: 10px;
-  overflow: hidden;
+  padding: 12px;
+  border: var(--modal-button-border-select);
+  border-radius: 8px;
+  font-size: 16px;
+  color: var(--text-color);
+  background-color: var(--input-bg);
+  transition: all 0.3s ease;
 }
 
-.sidebarProducts th,
-.sidebarProducts td {
-  border-bottom: 1px solid #eee;
-  padding: 8px;
-  text-align: center;
+.modalSelect:focus {
+  border-color: var(--main-color);
+  box-shadow: var(--modal-button-shadow-select-hover);
+  outline: none;
 }
 
-.sidebarProducts th {
-  background: #f9fafb;
-  font-weight: 600;
-  color: #555;
+/* ============================================
+   VARIANT MODAL (Colors & Sizes)
+   ============================================ */
+
+.colorButtons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
 }
 
-.sidebarProducts tr:hover td {
-  background-color: #f6f9ff;
-  transition: 0.2s;
-}
-
-/* ✅ تمرير ناعم داخل النافذة */
-.invoiceSidebar::-webkit-scrollbar {
-  width: 6px;
-}
-.invoiceSidebar::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 6px;
-}
-.invoiceSidebar::-webkit-scrollbar-thumb:hover {
-  background: #aaa;
-}
-.returnBtn {
-  background-color: #ff4d4d;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 13px;
+.colorBtn {
+  padding: 8px 16px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  font-size: 14px;
+  color: var(--text-color);
 }
 
-.returnBtn:hover {
-  background-color: #ff6b6b;
-  transform: scale(1.05);
+.colorBtn:hover {
+  border-color: var(--main-color);
+  background-color: var(--hover-color);
+  color: white;
 }
-/* خلفية الـ popup */
-.popupOverlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(5px);
+
+.colorBtn.active {
+  border-color: var(--main-color);
+  background-color: var(--main-color);
+  color: white;
+}
+
+.sizesContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.sizeRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.sizeName {
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.sizeControls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.available {
+  color: var(--text-color);
+  opacity: 0.7;
+  font-size: 14px;
+}
+
+.qtyControls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.qtyControls button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  cursor: pointer;
+  transition: all 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 999;
-  animation: fadeIn 0.3s ease;
 }
 
-/* الصندوق نفسه */
-.popupBox {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 24px 28px;
-  width: 380px;
-  max-width: 90%;
-  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.15);
-  animation: slideUp 0.3s ease;
-  font-family: "Cairo", sans-serif;
+.qtyControls button:hover {
+  background-color: var(--main-color);
+  color: white;
+  border-color: var(--main-color);
 }
 
-/* العنوان */
-.popupBox h3 {
-  margin-bottom: 16px;
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: #333;
+.qtyControls input {
+  width: 60px;
+  text-align: center;
+  padding: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-color);
+}
+
+.priceInput {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.priceInput label {
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.priceInput input {
+  width: 100%;
+  padding: 12px;
+  border: var(--modal-button-border-input);
+  border-radius: 8px;
+  font-size: 16px;
+  color: var(--text-color);
+  background-color: var(--input-bg);
+}
+
+.priceInfo {
+  margin-top: 8px;
+  padding: 12px;
+  background-color: var(--modal-section-bg);
+  border-radius: 8px;
+}
+
+.priceInfo p {
+  margin: 4px 0;
+  font-size: 14px;
+  color: var(--text-color);
+}
+
+.modalActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.emptyMessage {
+  color: var(--text-color);
+  opacity: 0.7;
+  padding: 20px;
   text-align: center;
 }
 
-/* النصوص */
-.popupBox label {
-  font-weight: 600;
-  color: #444;
-  margin-bottom: 6px;
-  display: block;
-}
+/* ============================================
+   BUTTONS (General)
+   ============================================ */
 
-/* الأزرار الخاصة بالألوان والمقاسات */
-.popupBox button {
-  transition: all 0.2s ease;
-}
-
-.popupBox button:hover {
-  background-color: #f0f0f0;
-  transform: scale(1.05);
-}
-
-/* أزرار الألوان والمقاسات */
-.popupBox div button {
-  font-size: 0.9rem;
-  background: #fff;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 6px 12px;
-  cursor: pointer;
-}
-
-.popupBox div button:active {
-  transform: scale(0.96);
-}
-
-/* زر الإضافة والإلغاء */
-.popupBox > div:last-child button {
-  background-color: #007bff;
-  color: #fff;
-  font-weight: 600;
+.deleteBtn {
+  background: linear-gradient(
+    135deg,
+    var(--button-bg-red),
+    var(--button-bg-red-hover)
+  );
+  color: black;
   border: none;
   border-radius: 10px;
-  padding: 8px 16px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+  font-family: "Tajawal", sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.deleteBtn:hover {
+  background: linear-gradient(
+    135deg,
+    var(--button-bg-red-hover),
+    var(--button-bg-red)
+  );
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  color: var(--text-on-primary) !important;
+}
+
+.deleteBtn:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+.deleteItemBtn {
+  background-color: transparent;
+  border: none;
+  color: var(--button-text-red);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.deleteItemBtn:hover {
+  background-color: var(--button-bg-red);
+  color: white;
+}
+
+.saveBtn {
+  background-color: var(--main-color) !important;
+  color: white !important;
+}
+
+.saveBtn:hover {
+  background-color: var(--hover-color) !important;
+}
+
+.cancelBtn {
+  background-color: var(--modal-button-secondary-bg) !important;
+  color: var(--modal-button-text-secondary) !important;
+}
+
+.cancelBtn:hover {
+  background-color: var(--modal-button-secondary-hover-bg) !important;
+}
+
+.addBtn {
+  background-color: var(--modal-button-primary-bg) !important;
+  color: var(--modal-button-text) !important;
+}
+
+.addBtn:hover {
+  background-color: var(--modal-button-primary-hover-bg) !important;
+}
+
+.confirmBtn {
+  background-color: var(--main-color) !important;
+  color: white !important;
+}
+
+.confirmBtn.danger {
+  background-color: var(--button-bg-red) !important;
+}
+
+.confirmBtn.danger:hover {
+  background-color: var(--button-bg-red-hover) !important;
+}
+
+.printBtn {
+  width: 100%;
+  height: 30px;
+  background-color: var(--main-color);
+  color: white;
+  font-size: 18px;
+  border: none;
+  border-radius: 8px;
+  margin-bottom: 15px;
+}
+
+/* ============================================
+   EMPTY STATES
+   ============================================ */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.emptyIcon {
+  font-size: 64px;
+  margin-bottom: 20px;
+  opacity: 0.5;
+  color: var(--text-tertiary);
+}
+
+.emptyState h3 {
+  font-size: 24px;
+  margin-bottom: 10px;
+  color: var(--text-heading);
+  font-weight: 700;
+}
+
+.emptyState p {
+  font-size: 16px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ============================================
+   TABLE ROW STATES
+   ============================================ */
+
+.tableRow {
+  animation: fadeIn 0.3s ease;
   transition: all 0.2s ease;
 }
 
-.popupBox > div:last-child button:first-child {
-  background-color: #ccc;
-  color: #333;
+.tableRow:hover {
+  transform: translateX(-4px);
+  box-shadow: var(--box-shadow-light);
 }
 
-.popupBox > div:last-child button:hover {
-  background-color: #0056b3;
+.tableRow.selected {
+  background-color: var(--main-color) !important;
+  color: white !important;
 }
 
-/* input الكمية */
-.popupBox input[type="number"] {
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 4px;
-  text-align: center;
-  font-size: 1rem;
-  width: 70px;
+.tableRow.selected td {
+  color: white !important;
 }
 
-.popupBox input[type="number"]:focus {
-  outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 3px #007bff;
-}
+/* ============================================
+   ANIMATIONS
+   ============================================ */
 
-/* تأثيرات دخول وخروج */
 @keyframes fadeIn {
   from {
     opacity: 0;
   }
   to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
     opacity: 1;
   }
 }
@@ -891,131 +1455,154 @@
     opacity: 1;
   }
 }
-.printBtn {
-  width: 100%;
-  height: 30px;
-  background-color: var(--main-color);
-  color: white;
-  font-size: 18px;
-  border: none;
-  border-radius: 8px;
+
+@keyframes popIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
+.card {
+  animation: fadeIn 0.3s ease;
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--box-shadow-medium);
+}
+
+.resetContainer.active {
+  animation: slideIn 0.3s ease;
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+.tableInput {
+  background-color: transparent;
+  border: none;
+  outline: none;
+}
+
+.tableContainer {
+  overflow-x: auto;
+}
+
+/* ============================================
+   RESPONSIVE DESIGN (Mobile)
+   ============================================ */
+
 @media (max-width: 767px) {
-  .sallesBtn {
-    display: flex;
-  }
-  /* زر القائمة يظهر */
-  .rightSide button {
-    display: block;
-  }
-
-  /* إخفاء الفاتورة الجانبية بشكل افتراضي */
-  .resetContainer {
-    position: fixed;
-    left: -200%;
-    background-color: white;
+  /* Content Area */
+  .content {
     width: 100%;
-    z-index: 2000;
-    transition: 0.3s;
-  }
-  .resetContainer.active {
-    left: 0;
-  }
-  .leftSide {
-    width: 100%;
-    flex-direction: column;
-  }
-
-  /* الجزء الأوسط يأخذ العرض كله */
-  .middleSection {
-    width: 100%;
-    padding: 15px 5%;
-  }
-
-  /* إخفاء الصفوف الزائدة أو غير المهمة */
-  .lastRow {
-    display: none;
-  }
-
-  /* الحاوية الرئيسية تتحول لعمود */
-  .mainContainer {
-    flex-direction: column;
-    align-items: stretch;
+    padding: 15px;
     gap: 15px;
   }
 
-  /* العنوان + الزرار + البحث يتصرفوا كعمود */
+  /* Header */
+  .header {
+    padding: 15px;
+  }
+
+  .menuBtn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    background-color: var(--surface-hover) !important;
+    color: var(--text-primary) !important;
+  }
+
   .title {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
+    font-size: 24px;
   }
 
-  .title h3 {
-    font-size: 22px;
-    margin: 0;
-  }
-
-  .rightSide {
+  .headerActions {
     width: 100%;
-    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
-  .rightSide button {
-    font-size: 18px;
+  /* إظهار زرار فتح المبيعات في mobile */
+  .sallesBtn {
+    display: flex !important;
   }
 
-  /* تحسين حقل البحث */
+  /* Search Box */
   .searchBox {
     width: 100%;
-    max-width: 100%;
-    padding: 8px 15px;
-  }
-
-  .searchBox input {
-    font-size: 14px;
-  }
-
-  /* جدول الفواتير يتناسب مع العرض */
-  .orderBox {
-    height: calc(100vh - 200px);
-    padding: 5px 0;
-    overflow-x: auto; /* ✅ يضيف تمرير أفقي للجدول */
-  }
-
-  .orderBox table {
-    width: 100%;
-    min-width: 500px; /* إذا احتاجت بعض الأعمدة للعرض الكامل */
-    border-collapse: collapse;
-  }
-
-  .cardsContainer {
-    flex-direction: column;
-    gap: 10px;
-    justify-content: space-between;
-  }
-
-  .card {
-    width: 100%;
     padding: 15px;
-    font-size: 14px;
   }
 
-  /* الفاتورة الجانبية تظهر كنافذة كاملة عند الحاجة */
+  /* Summary Cards */
+  .summaryCards {
+    width: 100%;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .summaryCard {
+    max-width: 100%;
+    padding: 16px;
+  }
+
+  .summaryValue {
+    font-size: 20px;
+  }
+
+  /* Table */
+  .tableWrapper {
+    border-radius: 12px;
+  }
+
+  .invoiceTable {
+    min-width: 600px;
+  }
+
+  /* Cart Sidebar - يظهر كـ overlay في mobile */
+  .resetContainer {
+    position: fixed;
+    left: -200%;
+    background-color: var(--surface);
+    width: 100%;
+    z-index: 2000;
+    transition: 0.3s;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .resetContainer.active {
+    left: 0;
+  }
+
+  /* إظهار زرار الإغلاق في الـ Cart في mobile */
+  .resetTitle button {
+    display: flex !important;
+  }
+
+  /* Invoice Sidebar */
   .invoiceSidebar {
     width: 100%;
     padding: 15px;
     border-radius: 0;
   }
 
-  /* تفاصيل العميل أصغر */
   .sidebarInfo {
     padding: 10px 8px;
     font-size: 14px;
   }
 
-  /* جدول المنتجات أصغر والخلايا أصغر */
   .sidebarProducts table {
     font-size: 12px;
   }
@@ -1025,13 +1612,12 @@
     padding: 6px;
   }
 
-  /* أزرار الإرجاع أصغر */
   .returnBtn {
     padding: 4px 8px;
     font-size: 12px;
   }
 
-  /* أزرار الفاتورة السفلية */
+  /* Cart Bottom Buttons */
   .resetBtns {
     flex-direction: column;
     gap: 10px;
@@ -1039,8 +1625,5 @@
 
   .resetBtns button {
     width: 100%;
-  }
-  .tableContainer {
-    overflow-x: auto;
   }
 }

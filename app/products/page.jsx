@@ -1,7 +1,7 @@
 "use client";
 import SideBar from "@/components/SideBar/page";
 import styles from "./styles.module.css";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { MdDriveFileRenameOutline } from "react-icons/md";
 import { GiMoneyStack } from "react-icons/gi";
 import { CiSearch } from "react-icons/ci";
@@ -9,6 +9,7 @@ import { FaRegTrashAlt } from "react-icons/fa";
 import { MdOutlineEdit } from "react-icons/md";
 import { FaRuler } from "react-icons/fa";
 import { FaPlus, FaMinus, FaTrash } from "react-icons/fa6";
+import { BiCategory } from "react-icons/bi";
 import { useRouter } from "next/navigation";
 import {
   collection,
@@ -25,8 +26,15 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import Loader from "@/components/Loader/Loader";
+import {
+  NotificationProvider,
+  useNotification,
+} from "@/contexts/NotificationContext";
+import { CONFIG } from "@/constants/config";
+import InputModal from "./components/InputModal";
 
-function Products() {
+function ProductsContent() {
+  const { success, error: showError, warning } = useNotification();
   const [auth, setAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState(false);
@@ -41,7 +49,8 @@ function Products() {
   const [showDeletePopup, setShowDeletePopup] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteForm, setDeleteForm] = useState([]);
-  const [searchDate, setSearchDate] = useState("");
+  const [filterSection, setFilterSection] = useState("الكل");
+  const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState({
     name: "",
     buyPrice: "",
@@ -65,6 +74,19 @@ function Products() {
   const [modalSizeType, setModalSizeType] = useState("");
   const [tempColors, setTempColors] = useState([]);
 
+  // Input Modal states
+  const [inputModal, setInputModal] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    placeholder: "",
+    defaultValue: "",
+    type: "text",
+    onConfirm: null,
+    min: undefined,
+    max: undefined,
+  });
+
   const sizeGroups = {
     شبابي: ["36", "37", "38", "39", "40", "41"],
     رجالي: ["40", "41", "42", "43", "44", "45"],
@@ -85,23 +107,21 @@ function Products() {
         where("userName", "==", userName)
       );
       const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const user = querySnapshot.docs[0].data();
-        if (user.permissions?.products === true) {
-          alert("ليس ليدك الصلاحية للوصول الى هذه الصفحة❌");
-          router.push("/");
-          return;
-        } else {
-          setAuth(true);
-        }
-      } else {
+      if (querySnapshot.empty) {
         router.push("/");
         return;
       }
+      const user = querySnapshot.docs[0].data();
+      if (user.permissions?.products === true) {
+        showError("ليس لديك الصلاحية للوصول إلى هذه الصفحة");
+        router.push("/");
+        return;
+      }
+      setAuth(true);
       setLoading(false);
     };
     checkLock();
-  }, []);
+  }, [router, showError]);
 
   useEffect(() => {
     const shop = localStorage.getItem("shop");
@@ -123,136 +143,23 @@ function Products() {
         }));
 
         setProducts(data);
-
-        // ------------------------------------------------------------
-        // 1) الفلترة
-        // ------------------------------------------------------------
-        let filtered = data;
-
-        if (searchCode.trim()) {
-          filtered = filtered.filter((p) =>
-            p.code
-              ?.toString()
-              .toLowerCase()
-              .includes(searchCode.trim().toLowerCase())
-          );
-        }
-
-        if (searchDate) {
-          const selected = new Date(searchDate).toLocaleDateString("ar-EG");
-          filtered = filtered.filter((p) => {
-            if (!p.date?.toDate) return false;
-            const productDate = p.date.toDate().toLocaleDateString("ar-EG");
-            return productDate === selected;
-          });
-        }
-
-        setFilteredProducts(filtered);
-
-        // ------------------------------------------------------------
-        // 2) حساب إجمالي الكميات
-        // ------------------------------------------------------------
-        let totalQty = 0;
-        filtered.forEach((product) => {
-          let productQty = 0;
-          if (product.colors && product.colors.length) {
-            product.colors.forEach((c) => {
-              if (c.sizes && c.sizes.length) {
-                c.sizes.forEach((sz) => {
-                  productQty += Number(sz.qty || 0);
-                });
-              } else if (c.quantity) {
-                productQty += Number(c.quantity || 0);
-              }
-            });
-          } else {
-            productQty = Number(product.quantity || 0);
-          }
-          totalQty += productQty;
-        });
-        setTotalProducts(totalQty);
-
-        // ------------------------------------------------------------
-        // 3) حساب الإجماليات
-        // ------------------------------------------------------------
-        let totalBuyAmount = 0;
-        let totalSellAmount = 0;
-        let finalTotalAmount = 0;
-
-        filtered.forEach((product) => {
-          let productQty = 0;
-          if (product.colors && product.colors.length) {
-            product.colors.forEach((c) => {
-              if (c.sizes && c.sizes.length) {
-                c.sizes.forEach((sz) => {
-                  productQty += Number(sz.qty || 0);
-                });
-              } else if (c.quantity) {
-                productQty += Number(c.quantity || 0);
-              }
-            });
-          } else {
-            productQty = Number(product.quantity || 0);
-          }
-
-          totalBuyAmount += (product.buyPrice || 0) * productQty;
-          totalSellAmount += (product.sellPrice || 0) * productQty;
-          finalTotalAmount += (product.finalPrice || 0) * productQty;
-        });
-
-        setTotalBuy(totalBuyAmount);
-        setTotalSell(totalSellAmount);
-        setFinalTotal(finalTotalAmount);
       },
       (err) => {
         console.error("Error fetching products with snapshot:", err);
+        showError(
+          `حدث خطأ أثناء جلب المنتجات: ${err.message || "خطأ غير معروف"}`
+        );
       }
     );
 
     // تنظيف الـ listener عند إلغاء المكون
     return () => unsubscribe();
-  }, [searchCode, searchDate]);
+  }, [showError]);
 
-  const getNextCode = async () => {
-    const shop = localStorage.getItem("shop");
-    const q = query(
-      collection(db, "lacosteProducts"),
-      where("shop", "==", shop),
-      where("type", "==", "product")
-    );
-    const snapshot = await getDocs(q);
-
-    if (snapshot.empty) return 1000;
-
-    const codes = snapshot.docs
-      .map((doc) => Number(doc.data().code))
-      .filter((code) => !isNaN(code) && code >= 1000); // يمنع الأكواد المبوظة
-
-    const maxCode = Math.max(...codes);
-    return maxCode + 1;
-  };
-
-  const computeTotalProducts = (productsArr) => {
-    let total = 0;
-
-    productsArr.forEach((product) => {
-      let qty = 0;
-
-      if (product.colors && product.colors.length) {
-        qty = computeTotalQtyFromColors(product.colors); // ← دي الدالة اللي عندك
-      } else {
-        qty = Number(product.quantity || 0);
-      }
-
-      total += qty;
-    });
-
-    return total;
-  };
-
-  const computeTotalQtyFromColors = (colorsArr) => {
-    let total = 0;
+  // Helper function to compute total quantity from colors (must be defined first)
+  const computeTotalQtyFromColors = useCallback((colorsArr) => {
     if (!Array.isArray(colorsArr)) return 0;
+    let total = 0;
     colorsArr.forEach((c) => {
       if (Array.isArray(c.sizes)) {
         c.sizes.forEach((s) => {
@@ -263,55 +170,217 @@ function Products() {
       }
     });
     return total;
-  };
+  }, []);
 
-  const handleAddProduct = async () => {
-    const shop = localStorage.getItem("shop");
-    const newCode = await getNextCode();
+  // Helper function to compute product quantity
+  const computeProductQuantity = useCallback(
+    (product) => {
+      if (product.colors && product.colors.length) {
+        return computeTotalQtyFromColors(product.colors);
+      }
+      return Number(product.quantity || 0);
+    },
+    [computeTotalQtyFromColors]
+  );
 
-    // حساب الكمية
-    const totalQty =
-      colors && colors.length > 0
-        ? computeTotalQtyFromColors(colors)
-        : Number(form.quantity || 0);
+  // Filtered products using useMemo
+  const filteredProductsMemo = useMemo(() => {
+    let filtered = products;
 
-    const productObj = {
-      code: newCode,
-      name: form.name || "",
-      buyPrice: Number(form.buyPrice) || 0,
-      sellPrice: Number(form.sellPrice) || 0,
-      finalPrice: Number(finalPrice) || 0,
-      quantity: totalQty,
-      colors: colors && colors.length > 0 ? colors : null,
-      sizeType: form.sizeType || "",
-      category: form.category || "",
-      section: form.section || "",
-      merchantName: form.merchantName || "",
-      date: Timestamp.now(),
-      shop: shop,
-      type: "product",
-    };
+    if (searchCode.trim()) {
+      filtered = filtered.filter((p) =>
+        p.code
+          ?.toString()
+          .toLowerCase()
+          .includes(searchCode.trim().toLowerCase())
+      );
+    }
 
-    await addDoc(collection(db, "lacosteProducts"), productObj);
-    await addDoc(collection(db, "wared"), productObj);
+    // Filter by section
+    if (filterSection && filterSection !== "الكل") {
+      filtered = filtered.filter((p) => p.section === filterSection);
+    }
 
-    alert("✅ تم إضافة المنتج بنجاح");
+    return filtered;
+  }, [products, searchCode, filterSection]);
 
-    // تفريغ الفورم
-    setForm({
-      name: "",
-      buyPrice: "",
-      sellPrice: "",
-      color: "",
-      sizeType: "",
-      quantity: "",
-      category: "",
-      section: "",
-      merchantName: "",
+  // Calculate totals using useMemo
+  const totals = useMemo(() => {
+    let totalQty = 0;
+    let totalBuyAmount = 0;
+    let totalSellAmount = 0;
+    let finalTotalAmount = 0;
+
+    filteredProductsMemo.forEach((product) => {
+      const productQty = computeProductQuantity(product);
+      totalQty += productQty;
+      totalBuyAmount += (product.buyPrice || 0) * productQty;
+      totalSellAmount += (product.sellPrice || 0) * productQty;
+      finalTotalAmount += (product.finalPrice || 0) * productQty;
     });
 
-    setColors([]);
+    return {
+      totalQty,
+      totalBuy: totalBuyAmount,
+      totalSell: totalSellAmount,
+      finalTotal: finalTotalAmount,
+    };
+  }, [filteredProductsMemo, computeProductQuantity]);
+
+  // Update state from memoized values
+  useEffect(() => {
+    setFilteredProducts(filteredProductsMemo);
+    setTotalProducts(totals.totalQty);
+    setTotalBuy(totals.totalBuy);
+    setTotalSell(totals.totalSell);
+    setFinalTotal(totals.finalTotal);
+  }, [filteredProductsMemo, totals]);
+
+  const getNextCode = useCallback(async () => {
+    const shop = localStorage.getItem("shop");
+    if (!shop) return 1000;
+
+    try {
+      const q = query(
+        collection(db, "lacosteProducts"),
+        where("shop", "==", shop),
+        where("type", "==", "product")
+      );
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) return 1000;
+
+      const codes = snapshot.docs
+        .map((doc) => Number(doc.data().code))
+        .filter((code) => !isNaN(code) && code >= 1000);
+
+      if (codes.length === 0) return 1000;
+
+      const maxCode = Math.max(...codes);
+      return maxCode + 1;
+    } catch (err) {
+      console.error("Error getting next code:", err);
+      showError("حدث خطأ أثناء الحصول على الكود التالي");
+      return 1000;
+    }
+  }, [showError]);
+
+  const computeTotalProducts = (productsArr) => {
+    let total = 0;
+
+    productsArr.forEach((product) => {
+      let qty = 0;
+
+      if (product.colors && product.colors.length) {
+        qty = computeTotalQtyFromColors(product.colors);
+      } else {
+        qty = Number(product.quantity || 0);
+      }
+
+      total += qty;
+    });
+
+    return total;
   };
+
+  const handleAddProduct = useCallback(async () => {
+    // Validation
+    if (!form.name.trim()) {
+      showError("يرجى إدخال اسم المنتج");
+      return;
+    }
+
+    if (!form.buyPrice || Number(form.buyPrice) <= 0) {
+      showError("يرجى إدخال سعر شراء صحيح");
+      return;
+    }
+
+    if (!form.sellPrice || Number(form.sellPrice) <= 0) {
+      showError("يرجى إدخال سعر بيع صحيح");
+      return;
+    }
+
+    if (!finalPrice || Number(finalPrice) <= 0) {
+      showError("يرجى إدخال سعر نهائي صحيح");
+      return;
+    }
+
+    const shop = localStorage.getItem("shop");
+    if (!shop) {
+      showError("حدث خطأ: المتجر غير محدد");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const newCode = await getNextCode();
+
+      // حساب الكمية
+      const totalQty =
+        colors && colors.length > 0
+          ? computeTotalQtyFromColors(colors)
+          : Number(form.quantity || 0);
+
+      if (totalQty <= 0) {
+        showError("يرجى إدخال كمية أكبر من صفر");
+        setIsSaving(false);
+        return;
+      }
+
+      const productObj = {
+        code: newCode,
+        name: form.name.trim(),
+        buyPrice: Number(form.buyPrice),
+        sellPrice: Number(form.sellPrice),
+        finalPrice: Number(finalPrice),
+        quantity: totalQty,
+        colors: colors && colors.length > 0 ? colors : null,
+        sizeType: form.sizeType || "",
+        category: form.category || "",
+        section: form.section || "",
+        merchantName: form.merchantName || "",
+        date: Timestamp.now(),
+        shop: shop,
+        type: "product",
+      };
+
+      await addDoc(collection(db, "lacosteProducts"), productObj);
+      await addDoc(collection(db, "wared"), productObj);
+
+      success("تم إضافة المنتج بنجاح");
+
+      // تفريغ الفورم
+      setForm({
+        name: "",
+        buyPrice: "",
+        sellPrice: "",
+        color: "",
+        sizeType: "",
+        quantity: "",
+        category: "",
+        section: "",
+        merchantName: "",
+      });
+      setFinalPrice("");
+      setColors([]);
+      setActive(false);
+    } catch (err) {
+      console.error("Error adding product:", err);
+      showError(
+        `حدث خطأ أثناء إضافة المنتج: ${err.message || "خطأ غير معروف"}`
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    form,
+    finalPrice,
+    colors,
+    getNextCode,
+    computeTotalQtyFromColors,
+    success,
+    showError,
+  ]);
 
   const handleDelete = async (product) => {
     const hasColors = product.colors && product.colors.length > 0;
@@ -337,10 +406,10 @@ function Products() {
         // 2. حذف المنتج من lacosteProducts
         await deleteDoc(doc(db, "lacosteProducts", product.id));
 
-        alert("تم حذف المنتج وحفظه في السجل بنجاح");
+        success("تم حذف المنتج وحفظه في السجل بنجاح");
       } catch (e) {
         console.error("Error deleting product:", e);
-        alert("حدث خطأ أثناء الحذف");
+        showError(`حدث خطأ أثناء الحذف: ${e.message || "خطأ غير معروف"}`);
       }
 
       return; // مهم جدًا
@@ -446,33 +515,46 @@ function Products() {
       totalQty = Number(form.quantity || oldProduct.quantity || 0);
     }
 
-    await updateDoc(productRef, {
-      name: form.name || "",
-      buyPrice: Number(form.buyPrice) || 0,
-      sellPrice: Number(form.sellPrice) || 0,
-      finalPrice: Number(finalPrice) || 0,
-      quantity: totalQty,
-      colors: finalColors,
-      sizeType: form.sizeType || oldProduct.sizeType || "",
-      category: form.category || oldProduct.category || "",
-      section: form.section || oldProduct.section || "", // 👈
-      merchantName: form.merchantName || oldProduct.merchantName || "", // 👈
-    });
+    setIsSaving(true);
+    try {
+      await updateDoc(productRef, {
+        name: form.name || "",
+        buyPrice: Number(form.buyPrice) || 0,
+        sellPrice: Number(form.sellPrice) || 0,
+        finalPrice: Number(finalPrice) || 0,
+        quantity: totalQty,
+        colors: finalColors,
+        sizeType: form.sizeType || oldProduct.sizeType || "",
+        category: form.category || oldProduct.category || "",
+        section: form.section || oldProduct.section || "",
+        merchantName: form.merchantName || oldProduct.merchantName || "",
+      });
 
-    alert("✅ تم تحديث المنتج بنجاح");
+      success("تم تحديث المنتج بنجاح");
 
-    setEditId(null);
-    setForm({
-      name: "",
-      buyPrice: "",
-      sellPrice: "",
-      color: "",
-      sizeType: "",
-      quantity: "",
-      category: "",
-    });
-    setColors([]);
-    setActive(false);
+      setEditId(null);
+      setForm({
+        name: "",
+        buyPrice: "",
+        sellPrice: "",
+        color: "",
+        sizeType: "",
+        quantity: "",
+        category: "",
+        section: "",
+        merchantName: "",
+      });
+      setFinalPrice("");
+      setColors([]);
+      setActive(false);
+    } catch (err) {
+      console.error("Error updating product:", err);
+      showError(
+        `حدث خطأ أثناء تحديث المنتج: ${err.message || "خطأ غير معروف"}`
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const openModalForCategory = (category) => {
@@ -491,45 +573,87 @@ function Products() {
 
   const handleCategorySelect = (category) => {
     setForm((prev) => ({ ...prev, category }));
-    openModalForCategory(category);
+    // لا تفتح الـ modal إذا كان الصنف "اكسسوار"
+    if (category && category !== "اكسسوار") {
+      openModalForCategory(category);
+    } else {
+      // إذا كان اكسسوار، امسح الألوان
+      setColors([]);
+      setTempColors([]);
+    }
   };
 
-  const addTempColor = () => {
-    const newColor = prompt("اكتب اللون الجديد:");
-    if (!newColor) return;
-    setTempColors((prev) => {
-      const exists = prev.find(
-        (p) => p.color.toLowerCase() === newColor.toLowerCase()
-      );
-      if (exists) return prev;
-      return [...prev, { color: newColor, sizes: [] }];
+  const addTempColor = useCallback(() => {
+    setInputModal({
+      isOpen: true,
+      title: "إضافة لون جديد",
+      message: "اكتب اسم اللون الجديد",
+      placeholder: "مثال: أحمر، أزرق، أسود",
+      defaultValue: "",
+      type: "text",
+      onConfirm: (newColor) => {
+        if (!newColor || !newColor.trim()) return;
+        setTempColors((prev) => {
+          const exists = prev.find(
+            (p) => p.color.toLowerCase() === newColor.trim().toLowerCase()
+          );
+          if (exists) {
+            warning("هذا اللون موجود بالفعل");
+            return prev;
+          }
+          return [...prev, { color: newColor.trim(), sizes: [] }];
+        });
+        setInputModal({ ...inputModal, isOpen: false });
+      },
     });
-  };
+  }, [warning]);
 
   const removeTempColor = (colorName) => {
     setTempColors((prev) => prev.filter((c) => c.color !== colorName));
   };
 
-  const addTempSizeToColor = (colorIndex) => {
-    const sizeName = prompt("اكتب اسم المقاس (مثال: M أو 42):");
-    if (!sizeName) return;
-    const qtyStr = prompt("اكتب الكمية لهذا المقاس (رقم):", "1");
-    const qty = Math.max(0, Number(qtyStr || 0));
-    setTempColors((prev) => {
-      const copy = prev.map((c) => ({
-        color: c.color,
-        sizes: c.sizes.map((s) => ({ ...s })),
-      }));
-      const target = copy[colorIndex];
-      const existing = target.sizes.find((s) => s.size === sizeName);
-      if (existing) {
-        existing.qty = Number(existing.qty || 0) + qty;
-      } else {
-        target.sizes.push({ size: sizeName, qty });
-      }
-      return copy;
+  const addTempSizeToColor = useCallback((colorIndex) => {
+    setInputModal({
+      isOpen: true,
+      title: "إضافة مقاس",
+      message: "اكتب اسم المقاس",
+      placeholder: "مثال: M أو 42",
+      defaultValue: "",
+      type: "text",
+      onConfirm: (sizeName) => {
+        if (!sizeName || !sizeName.trim()) return;
+        setInputModal({
+          isOpen: true,
+          title: "إضافة كمية",
+          message: `اكتب الكمية للمقاس ${sizeName.trim()}`,
+          placeholder: "الكمية",
+          defaultValue: "1",
+          type: "number",
+          min: 1,
+          onConfirm: (qtyStr) => {
+            const qty = Math.max(1, Number(qtyStr || 1));
+            setTempColors((prev) => {
+              const copy = prev.map((c) => ({
+                color: c.color,
+                sizes: c.sizes.map((s) => ({ ...s })),
+              }));
+              const target = copy[colorIndex];
+              const existing = target.sizes.find(
+                (s) => s.size === sizeName.trim()
+              );
+              if (existing) {
+                existing.qty = Number(existing.qty || 0) + qty;
+              } else {
+                target.sizes.push({ size: sizeName.trim(), qty });
+              }
+              return copy;
+            });
+            setInputModal({ ...inputModal, isOpen: false });
+          },
+        });
+      },
     });
-  };
+  }, []);
 
   const incTempSizeQty = (colorIndex, sizeName) => {
     setTempColors((prev) =>
@@ -578,7 +702,7 @@ function Products() {
         ? sizeGroups["هدوم"]
         : [];
     if (!group.length) {
-      alert("لا توجد مجموعة جاهزة للصنف/نوع المقاس الحالي.");
+      warning("لا توجد مجموعة جاهزة للصنف/نوع المقاس الحالي");
       return;
     }
     setTempColors((prev) => {
@@ -616,9 +740,16 @@ function Products() {
     setShowModal(false);
   };
 
-  const handlePrintLabel = (product) => {
-    const printWindow = window.open("", "", "width=400,height=300");
-    const htmlContent = `
+  const handlePrintLabel = useCallback(
+    (product) => {
+      try {
+        if (typeof window === "undefined") return;
+        const printWindow = window.open("", "", "width=400,height=300");
+        if (!printWindow) {
+          showError("تم منع نافذة الطباعة. يرجى السماح بالنوافذ المنبثقة");
+          return;
+        }
+        const htmlContent = `
       <html>
         <head>
           <meta charset="utf-8" />
@@ -708,9 +839,15 @@ function Products() {
         </body>
       </html>
     `;
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-  };
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+      } catch (err) {
+        console.error("Error printing label:", err);
+        showError(`حدث خطأ أثناء الطباعة: ${err.message || "خطأ غير معروف"}`);
+      }
+    },
+    [showError]
+  );
   const confirmDeleteSelected = async () => {
     if (!deleteTarget || !deleteForm.length) return;
 
@@ -731,7 +868,7 @@ function Products() {
 
         if (dq > 0) {
           if (dq > available) {
-            alert(
+            showError(
               `لا يمكنك حذف أكثر من الكمية الموجودة للمقاس ${size.size} (اللون ${color.color})`
             );
             return; // خروج فوري لو فيه خطأ
@@ -754,7 +891,7 @@ function Products() {
     }
 
     if (deletedList.length === 0) {
-      alert("لم تحدد أي كميات للحذف");
+      warning("لم تحدد أي كميات للحذف");
       return;
     }
 
@@ -818,12 +955,14 @@ function Products() {
       setDeleteForm([]);
 
       // اختياري: إظهار ملخص للمستخدم
-      alert(
-        `✅ تم حذف ${deletedTotalQty} قطعة (قيمة تقريبية: ${deletedTotalValue} كقيمة شراء).`
+      success(
+        `تم حذف ${deletedTotalQty} قطعة (قيمة تقريبية: ${deletedTotalValue.toFixed(
+          2
+        )} EGP كقيمة شراء)`
       );
     } catch (err) {
       console.error("خطأ أثناء عملية الحذف الجزئي:", err);
-      alert("حدث خطأ أثناء حذف العناصر، حاول مرة أخرى.");
+      showError(`حدث خطأ أثناء حذف العناصر: ${err.message || "خطأ غير معروف"}`);
     }
   };
 
@@ -834,73 +973,104 @@ function Products() {
     <div className={styles.products}>
       <SideBar />
       <div className={styles.content}>
-        <div className={styles.btns}>
-          <button
-            onClick={() => {
-              setActive(false);
-              setEditId(null);
-            }}
-          >
-            كل المنتجات
-          </button>
-          <button
-            onClick={() => {
-              setActive(true);
-              setEditId(null);
-            }}
-          >
-            اضف منتج جديد
-          </button>
-        </div>
         {!active && (
-          <div className={styles.phoneContainer}>
-            <div className={styles.searchBox}>
-              <div className="inputContainer">
-                <label>
-                  <CiSearch />
-                </label>
-                <input
-                  type="text"
-                  list="codesList"
-                  placeholder=" ابحث بالكود"
-                  value={searchCode}
-                  onChange={(e) => setSearchCode(e.target.value)}
-                />
-                <datalist id="codesList">
-                  {products.map((p) => (
-                    <option key={p.id} value={p.code} />
-                  ))}
-                </datalist>
-              </div>
-              <div className="inputContainer" style={{ marginTop: "15px" }}>
-                <input
-                  type="date"
-                  value={searchDate}
-                  onChange={(e) => setSearchDate(e.target.value)}
-                />
+          <div className={styles.stockMenu}>
+            {/* Header */}
+            <div className={styles.menuHeader}>
+              <h1 className={styles.menuTitle}>المنتجات</h1>
+              <div className={styles.headerControls}>
+                {/* Filter Dropdown */}
+                <div className={styles.filterDropdown}>
+                  <select
+                    value={filterSection}
+                    onChange={(e) => setFilterSection(e.target.value)}
+                    className={styles.filterSelect}
+                  >
+                    <option value="الكل">الكل</option>
+                    <option value="جينز">جينز</option>
+                    <option value="تيشيرت">تيشيرت</option>
+                    <option value="شروال">شروال</option>
+                    <option value="جاكت">جاكت</option>
+                    <option value="قميص">قميص</option>
+                    <option value="ترينج">ترينج</option>
+                    <option value="اندر شيرت">اندر شيرت</option>
+                  </select>
+                </div>
+
+                {/* Search Box */}
+                <div className={styles.searchContainer}>
+                  <CiSearch className={styles.searchIcon} />
+                  <input
+                    type="text"
+                    list="codesList"
+                    placeholder="بحث..."
+                    value={searchCode}
+                    onChange={(e) => setSearchCode(e.target.value)}
+                    className={styles.searchInput}
+                  />
+                  <datalist id="codesList">
+                    {products.map((p) => (
+                      <option key={p.id} value={p.code} />
+                    ))}
+                  </datalist>
+                </div>
+
+                {/* Add Button */}
+                <button
+                  className={styles.addStockBtn}
+                  onClick={() => {
+                    setActive(true);
+                    setEditId(null);
+                  }}
+                >
+                  <FaPlus className={styles.addIcon} />
+                  <span>إضافة منتج</span>
+                </button>
               </div>
             </div>
 
-            <div className={styles.totals}>
-              <p>اجمالي الشراء: {totalBuy} EGP</p>
-              <p>اجمالي البيع: {totalSell} EGP</p>
-              <p>اجمالي النهائي: {finaltotal} EGP</p>
-              <p>اجمالي المنتجات: {totalProducts} </p>
+            {/* Summary Cards */}
+            <div className={styles.summaryCards}>
+              <div className={styles.summaryCard}>
+                <span className={styles.summaryLabel}>إجمالي الشراء</span>
+                <span className={styles.summaryValue}>
+                  {totalBuy.toFixed(2)} EGP
+                </span>
+              </div>
+              <div className={styles.summaryCard}>
+                <span className={styles.summaryLabel}>إجمالي البيع</span>
+                <span className={styles.summaryValue}>
+                  {totalSell.toFixed(2)} EGP
+                </span>
+              </div>
+              <div className={styles.summaryCard}>
+                <span className={styles.summaryLabel}>إجمالي النهائي</span>
+                <span className={styles.summaryValue}>
+                  {finaltotal.toFixed(2)} EGP
+                </span>
+              </div>
+              <div className={styles.summaryCard}>
+                <span className={styles.summaryLabel}>إجمالي المنتجات</span>
+                <span className={styles.summaryValue}>
+                  {totalProducts} قطعة
+                </span>
+              </div>
             </div>
-            <div className={styles.tableContainer}>
-              <table>
+
+            {/* Products Table */}
+            <div className={styles.tableWrapper}>
+              <table className={styles.productsTable}>
                 <thead>
                   <tr>
                     <th>الكود</th>
                     <th>الاسم</th>
+                    <th>القسم</th>
                     <th>اسم التاجر</th>
                     <th>سعر الشراء</th>
                     <th>سعر البيع</th>
                     <th>السعر النهائي</th>
                     <th>الكمية</th>
-                    <th>الألوان (الكمية)</th>
-                    <th>تفصيل المقاسات</th>
-                    <th>التاريخ</th>
+                    <th>الألوان</th>
                     <th>خيارات</th>
                   </tr>
                 </thead>
@@ -925,19 +1095,37 @@ function Products() {
 
                       return (
                         <tr key={product.id}>
-                          <td>{product.code}</td>
-                          <td>{product.name || "-"}</td>
+                          <td className={styles.codeCell}>{product.code}</td>
+                          <td className={styles.nameCell}>
+                            {product.name || "-"}
+                          </td>
+                          <td className={styles.sectionCell}>
+                            <span className={styles.sectionBadge}>
+                              {product.section || "-"}
+                            </span>
+                          </td>
                           <td>{product.merchantName || "-"}</td>
-                          <td>{product.buyPrice || 0} EGP</td>
-                          <td>{product.sellPrice || 0} EGP</td>
-                          <td>{product.finalPrice} EGP</td>
-                          <td>{totalQ || product.quantity || 0}</td>
-
-                          {/* خلية الألوان مع الكمية */}
-                          <td style={{ maxWidth: 150 }}>
-                            {colorsList.length === 0
-                              ? "-"
-                              : colorsList.map((c) => {
+                          <td className={styles.priceCell}>
+                            {product.buyPrice || 0} EGP
+                          </td>
+                          <td className={styles.priceCell}>
+                            {product.sellPrice || 0} EGP
+                          </td>
+                          <td className={styles.priceCell}>
+                            {product.finalPrice} EGP
+                          </td>
+                          <td className={styles.stockCell}>
+                            <span className={styles.stockBadge}>
+                              {totalQ || product.quantity || 0}
+                            </span>
+                          </td>
+                          {/* خلية الألوان */}
+                          <td className={styles.colorsCell}>
+                            {colorsList.length === 0 ? (
+                              <span className={styles.emptyText}>-</span>
+                            ) : (
+                              <div className={styles.colorsList}>
+                                {colorsList.map((c) => {
                                   const colorTotal =
                                     c.sizes && c.sizes.length
                                       ? c.sizes.reduce(
@@ -945,80 +1133,93 @@ function Products() {
                                           0
                                         )
                                       : c.quantity || 0;
+                                  
+                                  // تجهيز تفاصيل المقاسات للعرض
+                                  const sizesDetails = c.sizes && c.sizes.length
+                                    ? c.sizes.map(s => `${s.size}: ${s.qty}`).join(", ")
+                                    : c.quantity ? `الكمية: ${c.quantity}` : "لا توجد مقاسات";
+                                  
                                   return (
                                     <div
                                       key={c.color}
-                                      style={{
-                                        whiteSpace: "nowrap",
-                                        border: "1px solid #eee",
-                                        padding: "2px 6px",
-                                        borderRadius: 4,
-                                        background: "#f9f9f9",
-                                        fontSize: 14,
-                                        marginBottom: 4,
-                                      }}
+                                      className={styles.colorTagContainer}
                                     >
-                                      <strong>{c.color}:</strong> {colorTotal}
+                                      <span
+                                        className={styles.colorTag}
+                                        title={sizesDetails}
+                                      >
+                                        {c.color} ({colorTotal})
+                                      </span>
+                                      <div className={styles.colorTooltip}>
+                                        <div className={styles.tooltipHeader}>
+                                          <strong>{c.color}</strong>
+                                          <span className={styles.tooltipTotal}>
+                                            إجمالي: {colorTotal}
+                                          </span>
+                                        </div>
+                                        <div className={styles.tooltipSizes}>
+                                          {c.sizes && c.sizes.length ? (
+                                            c.sizes.map((s, idx) => (
+                                              <div key={idx} className={styles.tooltipSizeItem}>
+                                                <span className={styles.tooltipSizeName}>
+                                                  {s.size}
+                                                </span>
+                                                <span className={styles.tooltipSizeQty}>
+                                                  {s.qty}
+                                                </span>
+                                              </div>
+                                            ))
+                                          ) : c.quantity ? (
+                                            <div className={styles.tooltipSizeItem}>
+                                              <span className={styles.tooltipSizeName}>
+                                                الكمية
+                                              </span>
+                                              <span className={styles.tooltipSizeQty}>
+                                                {c.quantity}
+                                              </span>
+                                            </div>
+                                          ) : (
+                                            <div className={styles.tooltipEmpty}>
+                                              لا توجد مقاسات
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
                                     </div>
                                   );
                                 })}
+                              </div>
+                            )}
                           </td>
-
-                          {/* خلية تفصيل المقاسات */}
-                          <td style={{ maxWidth: 300 }}>
-                            {colorsList.length === 0
-                              ? "-"
-                              : colorsList.map((c) => {
-                                  const detail =
-                                    c.sizes && c.sizes.length
-                                      ? c.sizes
-                                          .map((s) => `${s.size}(${s.qty})`)
-                                          .join(", ")
-                                      : c.quantity
-                                      ? `كمية: ${c.quantity}`
-                                      : "-";
-                                  return (
-                                    <div
-                                      key={c.color}
-                                      style={{
-                                        whiteSpace: "nowrap",
-                                        border: "1px solid #eee",
-                                        padding: "2px 6px",
-                                        borderRadius: 4,
-                                        background: "#f9f9f9",
-                                        fontSize: 14,
-                                        marginBottom: 4,
-                                      }}
-                                    >
-                                      <strong>{c.color}:</strong> {detail}
-                                    </div>
-                                  );
-                                })}
-                          </td>
-
-                          <td>
-                            {product.date?.toDate
-                              ? product.date
-                                  .toDate()
-                                  .toLocaleDateString("ar-EG")
-                              : product.date}
-                          </td>
-
                           {/* خيارات */}
                           <td className={styles.actions}>
-                            {userName === "mostafabeso10@gmail.com" && (
-                              <>
-                                <button onClick={() => handleDelete(product)}>
-                                  <FaRegTrashAlt />
-                                </button>
-                                <button onClick={() => handleEdit(product)}>
-                                  <MdOutlineEdit />
-                                </button>
-                              </>
-                            )}
-                            <button onClick={() => handlePrintLabel(product)}>
-                              🖨️
-                            </button>
+                            <div className={styles.actionButtons}>
+                              {CONFIG.ADMIN_EMAILS.includes(userName) && (
+                                <>
+                                  <button
+                                    className={styles.actionBtn}
+                                    onClick={() => handleEdit(product)}
+                                    title="تعديل"
+                                  >
+                                    <MdOutlineEdit />
+                                  </button>
+                                  <button
+                                    className={`${styles.actionBtn} ${styles.deleteBtn}`}
+                                    onClick={() => handleDelete(product)}
+                                    title="حذف"
+                                  >
+                                    <FaRegTrashAlt />
+                                  </button>
+                                </>
+                              )}
+                              <button
+                                className={styles.actionBtn}
+                                onClick={() => handlePrintLabel(product)}
+                                title="طباعة"
+                              >
+                                🖨️
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1074,7 +1275,9 @@ function Products() {
               </div>
               <div className={styles.inputBox}>
                 <div className="inputContainer">
-                  <label>السعر النهائي</label>
+                  <label>
+                    <GiMoneyStack />
+                  </label>
                   <input
                     type="number"
                     placeholder="ادخل السعر النهائي"
@@ -1082,11 +1285,28 @@ function Products() {
                     onChange={(e) => setFinalPrice(e.target.value)}
                   />
                 </div>
+                <div className={styles.inputBox}>
+                  <div className="inputContainer">
+                    <label>
+                      <MdDriveFileRenameOutline />
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="اسم التاجر"
+                      value={form.merchantName}
+                      onChange={(e) =>
+                        setForm({ ...form, merchantName: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
               </div>
             </div>
             <div className={styles.inputBox}>
               <div className="inputContainer">
-                <label>القسم</label>
+                <label>
+                  <BiCategory />
+                </label>
                 <select
                   value={form.section}
                   onChange={(e) =>
@@ -1104,23 +1324,12 @@ function Products() {
                 </select>
               </div>
             </div>
-            <div className={styles.inputBox}>
-              <div className="inputContainer">
-                <label>اسم التاجر</label>
-                <input
-                  type="text"
-                  placeholder="اسم التاجر"
-                  value={form.merchantName}
-                  onChange={(e) =>
-                    setForm({ ...form, merchantName: e.target.value })
-                  }
-                />
-              </div>
-            </div>
 
             <div className={styles.inputBox}>
               <div className="inputContainer">
-                <label>الصنف</label>
+                <label>
+                  <BiCategory />
+                </label>
                 <select
                   value={form.category}
                   onChange={(e) => handleCategorySelect(e.target.value)}
@@ -1154,18 +1363,20 @@ function Products() {
               </div>
             )}
 
-            <div className={styles.inputBox}>
-              <button
-                className={styles.manageBtn}
-                onClick={() => openModalForCategory(form.category || "اكسسوار")}
-              >
-                تحرير الألوان والمقاسات
-              </button>
-            </div>
+            {form.category && form.category !== "اكسسوار" && (
+              <div className={styles.inputBox}>
+                <button
+                  className={styles.manageBtn}
+                  onClick={() => openModalForCategory(form.category)}
+                >
+                  تحرير الألوان والمقاسات
+                </button>
+              </div>
+            )}
 
             <div className={styles.colorsBox}>
               <h4>تفاصيل الألوان والمقاسات</h4>
-              <div style={{ marginBottom: 10, fontWeight: 600 }}>
+              <div className={styles.totalQtyInfo}>
                 إجمالي الكمية قبل الإضافة: {computeTempColorsQty()}
               </div>
 
@@ -1174,35 +1385,17 @@ function Products() {
               )}
               {colors.map((c, idx) => (
                 <div key={idx} className={styles.sizeRow}>
-                  <strong>{c.color}</strong>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      flexWrap: "wrap",
-                      marginTop: 6,
-                    }}
-                  >
+                  <strong className={styles.colorName}>{c.color}</strong>
+                  <div className={styles.sizesPreviewContainer}>
                     {c.sizes && c.sizes.length ? (
                       c.sizes.map((s, si) => (
-                        <div
-                          key={si}
-                          style={{
-                            padding: "6px 8px",
-                            borderRadius: 8,
-                            border: "1px solid #e0e0e0",
-                            background: "#fff",
-                            display: "flex",
-                            gap: 8,
-                            alignItems: "center",
-                          }}
-                        >
+                        <div key={si} className={styles.sizePreviewBadge}>
                           <span>{s.size}</span>
-                          <span style={{ fontWeight: 600 }}>{s.qty}</span>
+                          <span className={styles.sizePreviewQty}>{s.qty}</span>
                         </div>
                       ))
                     ) : (
-                      <em style={{ color: "#666" }}>لا توجد مقاسات</em>
+                      <em className={styles.emptySizeText}>لا توجد مقاسات</em>
                     )}
                   </div>
                 </div>
@@ -1227,15 +1420,26 @@ function Products() {
               </div>
             )}
 
-            {active === "edit" ? (
-              <button className={styles.addBtn} onClick={handleUpdateProduct}>
-                تحديث المنتج
+            <div className={styles.actionButtonsContainer}>
+              {active === "edit" ? (
+                <button className={styles.addBtn} onClick={handleUpdateProduct}>
+                  تحديث المنتج
+                </button>
+              ) : (
+                <button className={styles.addBtn} onClick={handleAddProduct}>
+                  اضف المنتج
+                </button>
+              )}
+              <button
+                className={styles.viewAllBtn}
+                onClick={() => {
+                  setActive(false);
+                  setEditId(null);
+                }}
+              >
+                كل المنتجات
               </button>
-            ) : (
-              <button className={styles.addBtn} onClick={handleAddProduct}>
-                اضف المنتج
-              </button>
-            )}
+            </div>
           </div>
         )}
 
@@ -1279,7 +1483,7 @@ function Products() {
                     <select
                       value={modalSizeType}
                       onChange={(e) => setModalSizeType(e.target.value)}
-                      style={{ padding: "6px 8px", borderRadius: 8 }}
+                      className={styles.modalSelect}
                     >
                       <option value="">نوع المقاس (اختياري)</option>
                       <option value="شبابي">شبابي</option>
@@ -1305,15 +1509,8 @@ function Products() {
                   >
                     {tempColors.map((c, ci) => (
                       <div key={ci} className={styles.gridItem}>
-                        <div
-                          style={{
-                            width: "100%",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <div style={{ fontWeight: 700 }}>{c.color}</div>
+                        <div className={styles.colorHeader}>
+                          <div className={styles.colorName}>{c.color}</div>
                           <div style={{ display: "flex", gap: 6 }}>
                             <button
                               onClick={() => addPresetSizesToColor(ci)}
@@ -1329,14 +1526,8 @@ function Products() {
                             </button>
                           </div>
                         </div>
-                        <div style={{ marginTop: 8, width: "100%" }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 8,
-                              marginBottom: 8,
-                            }}
-                          >
+                        <div className={styles.colorContent}>
+                          <div className={styles.addSizeBtnContainer}>
                             <button
                               onClick={() => addTempSizeToColor(ci)}
                               className={styles.smallBtn}
@@ -1344,51 +1535,21 @@ function Products() {
                               ➕ أضف مقاس لهذا اللون
                             </button>
                           </div>
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: 8,
-                            }}
-                          >
+                          <div className={styles.sizesContainer}>
                             {c.sizes && c.sizes.length ? (
                               c.sizes.map((s, si) => (
-                                <div
-                                  key={si}
-                                  style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    gap: 8,
-                                    padding: "6px 8px",
-                                    borderRadius: 8,
-                                    border: "1px solid #eee",
-                                    background: "#fff",
-                                  }}
-                                >
-                                  <div style={{ fontWeight: 600 }}>
+                                <div key={si} className={styles.sizeRow}>
+                                  <div className={styles.sizeName}>
                                     {s.size}
                                   </div>
-                                  <div
-                                    style={{
-                                      display: "flex",
-                                      gap: 6,
-                                      alignItems: "center",
-                                    }}
-                                  >
+                                  <div className={styles.sizeControls}>
                                     <button
                                       onClick={() => decTempSizeQty(ci, s.size)}
                                       className={styles.smallBtn}
                                     >
                                       <FaMinus />
                                     </button>
-                                    <span
-                                      style={{
-                                        minWidth: 24,
-                                        textAlign: "center",
-                                        fontWeight: 600,
-                                      }}
-                                    >
+                                    <span className={styles.qtyDisplay}>
                                       {s.qty}
                                     </span>
                                     <button
@@ -1409,7 +1570,7 @@ function Products() {
                                 </div>
                               ))
                             ) : (
-                              <div style={{ color: "#777" }}>
+                              <div className={styles.emptySizeText}>
                                 لا توجد مقاسات لهذا اللون
                               </div>
                             )}
@@ -1533,7 +1694,34 @@ function Products() {
           </div>
         )}
       </div>
+
+      {/* Input Modal for replacing prompt() */}
+      <InputModal
+        isOpen={inputModal.isOpen}
+        onClose={() => setInputModal({ ...inputModal, isOpen: false })}
+        onConfirm={(value) => {
+          if (inputModal.onConfirm) {
+            inputModal.onConfirm(value);
+          }
+          setInputModal({ ...inputModal, isOpen: false });
+        }}
+        title={inputModal.title}
+        message={inputModal.message}
+        placeholder={inputModal.placeholder}
+        defaultValue={inputModal.defaultValue}
+        type={inputModal.type}
+        min={inputModal.min}
+        max={inputModal.max}
+      />
     </div>
+  );
+}
+
+function Products() {
+  return (
+    <NotificationProvider>
+      <ProductsContent />
+    </NotificationProvider>
   );
 }
 

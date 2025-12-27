@@ -1,24 +1,24 @@
 "use client";
 import SideBar from "@/components/SideBar/page";
 import styles from "./styles.module.css";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   collection,
   query,
   where,
   onSnapshot,
-  getDocs,
 } from "firebase/firestore";
 import { db } from "../firebase";
+import Loader from "@/components/Loader/Loader";
 
 export default function DailyReports() {
   const [products, setProducts] = useState([]);
-  const [filtered, setFiltered] = useState([]);
   const [selectedSection, setSelectedSection] = useState("");
-  const [totalQty, setTotalQty] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // دالة حساب كمية منتج واحد (حسب الألوان والمقاسات)
-  const computeTotalQtyFromColors = (colorsArr) => {
+  const computeTotalQtyFromColors = useCallback((colorsArr) => {
     let total = 0;
     if (!Array.isArray(colorsArr)) return 0;
     colorsArr.forEach((c) => {
@@ -31,10 +31,10 @@ export default function DailyReports() {
       }
     });
     return total;
-  };
+  }, []);
 
   // دالة حساب إجمالي كل المنتجات بعد الفلترة
-  const computeTotalProducts = (arr) => {
+  const computeTotalProducts = useCallback((arr) => {
     let total = 0;
     arr.forEach((product) => {
       if (product.colors && product.colors.length) {
@@ -44,11 +44,28 @@ export default function DailyReports() {
       }
     });
     return total;
-  };
+  }, [computeTotalQtyFromColors]);
+
+  // فلترة المنتجات حسب القسم
+  const filteredProducts = useMemo(() => {
+    if (!selectedSection) {
+      return products;
+    }
+    return products.filter((p) => p.section === selectedSection);
+  }, [products, selectedSection]);
+
+  // حساب إجمالي الكمية
+  const totalQty = useMemo(() => {
+    return computeTotalProducts(filteredProducts);
+  }, [filteredProducts, computeTotalProducts]);
 
   useEffect(() => {
     const shop = localStorage.getItem("shop");
-    if (!shop) return;
+    if (!shop) {
+      setError("لم يتم العثور على المتجر");
+      setLoading(false);
+      return;
+    }
 
     const q = query(
       collection(db, "lacosteProducts"),
@@ -56,44 +73,69 @@ export default function DailyReports() {
       where("type", "==", "product")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        try {
+          const data = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
 
-      setProducts(data);
-      setFiltered(data);
-      setTotalQty(computeTotalProducts(data));
-    });
+          setProducts(data);
+          setError(null);
+        } catch (err) {
+          console.error("Error processing data:", err);
+          setError("حدث خطأ أثناء معالجة البيانات");
+        } finally {
+          setLoading(false);
+        }
+      },
+      (err) => {
+        console.error("Error fetching products:", err);
+        setError("حدث خطأ أثناء جلب البيانات");
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    let result;
+  if (loading) {
+    return <Loader />;
+  }
 
-    if (selectedSection) {
-      result = products.filter((p) => p.section === selectedSection);
-    } else {
-      result = products;
-    }
-
-    setFiltered(result);
-    setTotalQty(computeTotalProducts(result));
-  }, [selectedSection, products]);
+  if (error) {
+    return (
+      <div className={styles.dailyReports}>
+        <SideBar />
+        <div className={styles.content}>
+          <div className={styles.errorState}>
+            <p>❌ {error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className={styles.DailyReports}>
+    <div className={styles.dailyReports}>
       <SideBar />
 
       <div className={styles.content}>
-        {/* -- شريط البحث -- */}
+        {/* Header */}
+        <div className={styles.header}>
+          <h2 className={styles.title}>جرد يومي</h2>
+        </div>
+
+        {/* Search Box */}
         <div className={styles.searchBox}>
-          <div className="inputContainer">
+          <div className={styles.inputContainer}>
+            <label className={styles.sectionLabel}>البحث بالقسم:</label>
             <select
               value={selectedSection}
               onChange={(e) => setSelectedSection(e.target.value)}
+              className={styles.sectionSelect}
             >
               <option value="">كل الأقسام</option>
               <option value="جينز">جينز</option>
@@ -107,50 +149,15 @@ export default function DailyReports() {
           </div>
         </div>
 
-        <button
-          onClick={() => {
-            if (typeof window !== "undefined") {
-              const table = document.getElementById("productsTable");
-              if (!table) return;
-
-              const printWindow = window.open("", "", "width=900,height=650");
-              printWindow.document.write(`
-                <html>
-                  <head>
-                    <title>طباعة المنتجات</title>
-                    <style>
-                      table { width: 100%; border-collapse: collapse; }
-                      th, td { border: 1px solid #000; padding: 8px; text-align: left; }
-                    </style>
-                  </head>
-                  <body>${table.outerHTML}</body>
-                </html>
-              `);
-              printWindow.document.close();
-              printWindow.focus();
-              printWindow.print();
-              // شيل printWindow.close() عشان النافذة متتقفلش على طول
-            }
-          }}
-          style={{
-            padding: "8px 12px",
-            marginBottom: "12px",
-            background: "#ffd400",
-            border: "none",
-            borderRadius: 6,
-          }}
-        >
-          طباعة المنتجات
-        </button>
-
-        {/* ✔ عرض إجمالي الكمية */}
-        <div className={styles.totals}>
-          <h2>إجمالي الكمية: {totalQty}</h2>
+        {/* Total Quantity */}
+        <div className={styles.totalCard}>
+          <h3 className={styles.totalLabel}>إجمالي الكمية:</h3>
+          <span className={styles.totalValue}>{totalQty}</span>
         </div>
 
-        {/* ✔ جدول المنتجات */}
-        <div className={styles.tableContainer}>
-          <table id="productsTable">
+        {/* Table */}
+        <div className={styles.tableWrapper}>
+          <table className={styles.reportsTable}>
             <thead>
               <tr>
                 <th>الكود</th>
@@ -160,19 +167,29 @@ export default function DailyReports() {
             </thead>
 
             <tbody>
-              {filtered.map((p) => {
-                const qty = p.colors?.length
-                  ? computeTotalQtyFromColors(p.colors)
-                  : Number(p.quantity || 0);
+              {filteredProducts.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className={styles.emptyCell}>
+                    <div className={styles.emptyState}>
+                      <p>❌ لا توجد منتجات</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredProducts.map((p) => {
+                  const qty = p.colors?.length
+                    ? computeTotalQtyFromColors(p.colors)
+                    : Number(p.quantity || 0);
 
-                return (
-                  <tr key={p.id}>
-                    <td>{p.code}</td>
-                    <td>{p.name}</td>
-                    <td>{qty}</td>
-                  </tr>
-                );
-              })}
+                  return (
+                    <tr key={p.id}>
+                      <td className={styles.codeCell}>{p.code || "-"}</td>
+                      <td className={styles.nameCell}>{p.name || "-"}</td>
+                      <td className={styles.quantityCell}>{qty}</td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

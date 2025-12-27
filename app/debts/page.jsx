@@ -1,11 +1,14 @@
 "use client";
 import SideBar from "@/components/SideBar/page";
 import styles from "./styles.module.css";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { CiSearch, CiPhone } from "react-icons/ci";
 import { FaRegTrashAlt } from "react-icons/fa";
 import { GiMoneyStack } from "react-icons/gi";
 import { MdDriveFileRenameOutline } from "react-icons/md";
+import { FaPlus } from "react-icons/fa6";
+import { FaEye } from "react-icons/fa";
+import { FaEllipsisVertical } from "react-icons/fa6";
 import { db } from "@/app/firebase";
 import {
   addDoc,
@@ -18,17 +21,22 @@ import {
   getDocs,
   getDoc,
   updateDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import Loader from "@/components/Loader/Loader";
+import { NotificationProvider, useNotification } from "@/contexts/NotificationContext";
+import ConfirmModal from "@/components/Main/Modals/ConfirmModal";
 
-function Debts() {
+function DebtsContent() {
   const router = useRouter();
+  const { success, error: showError, warning } = useNotification();
   const [detailsAslDebt, setDetailsAslDebt] = useState(0);
   const [auth, setAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState(false);
   const [searchCode, setSearchCode] = useState("");
+  const [searchText, setSearchText] = useState("");
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -36,11 +44,21 @@ function Debts() {
     debtType: "",
     debtDirection: "",
     dateInput: "",
-    paymentAmount: "", // مبلغ السداد مباشرة
-    paymentSource: "درج", // درج أو خزنة
+    paymentAmount: "",
+    paymentSource: "درج",
   });
 
   const [customers, setCustomers] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+  const buttonRefs = useRef({});
+
+  const shop =
+    typeof window !== "undefined" ? localStorage.getItem("shop") : "";
+
   const getTreasuryBalance = async () => {
     const q = query(collection(db, "dailyProfit"), where("shop", "==", shop));
     const snapshot = await getDocs(q);
@@ -67,15 +85,18 @@ function Debts() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentCustomer, setPaymentCustomer] = useState(null);
-  const [paymentSource, setPaymentSource] = useState("درج"); // درج أو خزنة
+  const [paymentSource, setPaymentSource] = useState("درج");
   const [processingPayment, setProcessingPayment] = useState(false);
+
+  // ===== increase debt modal state
+  const [showIncreaseModal, setShowIncreaseModal] = useState(false);
+  const [increaseAmount, setIncreaseAmount] = useState("");
+  const [increaseCustomer, setIncreaseCustomer] = useState(null);
+  const [processingIncrease, setProcessingIncrease] = useState(false);
 
   // ===== details popup
   const [showDetailsPopup, setShowDetailsPopup] = useState(false);
   const [detailsPayments, setDetailsPayments] = useState([]);
-
-  const shop =
-    typeof window !== "undefined" ? localStorage.getItem("shop") : "";
 
   useEffect(() => {
     const checkLock = async () => {
@@ -92,7 +113,7 @@ function Debts() {
       if (!querySnapshot.empty) {
         const user = querySnapshot.docs[0].data();
         if (user.permissions?.debts === true) {
-          alert("ليس ليدك الصلاحية للوصول الى هذه الصفحة❌");
+          showError("ليس لديك الصلاحية للوصول إلى هذه الصفحة❌");
           router.push("/");
           return;
         } else {
@@ -105,164 +126,343 @@ function Debts() {
       setLoading(false);
     };
     checkLock();
-  }, []);
+  }, [router, showError]);
 
   useEffect(() => {
     if (!shop) return;
     const q = query(collection(db, "debts"), where("shop", "==", shop));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      // ترتيب حسب التاريخ تنازليًا
+      data.sort((a, b) => {
+        const dateA = a.date?.toDate ? a.date.toDate().getTime() : (a.date?.seconds || 0) * 1000;
+        const dateB = b.date?.toDate ? b.date.toDate().getTime() : (b.date?.seconds || 0) * 1000;
+        return dateB - dateA;
+      });
       setCustomers(data);
     });
 
     return () => unsubscribe();
   }, [shop]);
 
+  const filteredCustomers = useMemo(() => {
+    return customers.filter((c) => {
+      if (!c.date) return false;
+
+      // البحث بالاسم أو رقم الهاتف
+      if (searchText.trim()) {
+        const searchLower = searchText.toLowerCase();
+        const matchesSearch = 
+          (c.name?.toLowerCase().includes(searchLower) || false) ||
+          (c.phone?.includes(searchText) || false);
+        if (!matchesSearch) return false;
+      }
+
+      // البحث بالتاريخ
+      if (searchCode) {
+        const dateObj = c.date.toDate ? c.date.toDate() : new Date(c.date);
+        const day = String(dateObj.getDate()).padStart(2, "0");
+        const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+        const year = dateObj.getFullYear();
+        const dateStr = `${year}-${month}-${day}`;
+        if (!dateStr.includes(searchCode)) return false;
+      } else {
+        // بدون تاريخ، اعرض بس العملاء اللي عندهم دين > 0
+        if (Number(c.debt || 0) <= 0) return false;
+      }
+
+      return true;
+    });
+  }, [customers, searchCode, searchText]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [filteredCustomers]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    let timeoutId = null;
+
+    const handleClickOutside = (event) => {
+      if (!openDropdownId) return;
+      
+      // Check if click is outside both the dropdown menu and the toggle button
+      const dropdownMenu = document.querySelector(`.${styles.dropdownMenu}`);
+      const toggleButton = buttonRefs.current[openDropdownId];
+      
+      if (dropdownMenu && toggleButton) {
+        const isClickInsideMenu = dropdownMenu.contains(event.target);
+        const isClickOnToggle = toggleButton.contains(event.target);
+        
+        // Only close if click is truly outside
+        if (!isClickInsideMenu && !isClickOnToggle) {
+          // Small delay to allow for hover events
+          if (timeoutId) clearTimeout(timeoutId);
+          timeoutId = setTimeout(() => {
+            setOpenDropdownId(null);
+          }, 50);
+        } else {
+          // Cancel timeout if clicking inside
+          if (timeoutId) clearTimeout(timeoutId);
+        }
+      }
+    };
+
+    const handleMouseMove = () => {
+      // Cancel any pending close when mouse moves (hovering)
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+
+    if (openDropdownId) {
+      // Use click instead of mousedown to avoid closing on hover
+      document.addEventListener("click", handleClickOutside, true);
+      document.addEventListener("mousemove", handleMouseMove, true);
+      // Also listen to touchstart for mobile
+      document.addEventListener("touchstart", handleClickOutside, true);
+      
+      return () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        document.removeEventListener("click", handleClickOutside, true);
+        document.removeEventListener("mousemove", handleMouseMove, true);
+        document.removeEventListener("touchstart", handleClickOutside, true);
+      };
+    }
+  }, [openDropdownId]);
+
+  // Update dropdown position on scroll or resize
+  useEffect(() => {
+    if (!openDropdownId) return;
+
+    const updatePosition = () => {
+      const button = buttonRefs.current[openDropdownId];
+      if (!button) return;
+
+      const rect = button.getBoundingClientRect();
+      const menuWidth = 240;
+      const menuHeight = 200; // Approximate height, will adjust
+      
+      // Calculate right position: align menu's right edge with button's right edge
+      const rightPosition = window.innerWidth - rect.right;
+      
+      // Ensure menu doesn't go off screen on the left
+      let finalRight = rightPosition;
+      if (rect.right < menuWidth) {
+        finalRight = window.innerWidth - menuWidth - 8;
+      }
+      
+      // Position menu above the button
+      let finalTop = rect.top - menuHeight - 8;
+      
+      // If menu would go off screen at top, position it below button instead
+      if (finalTop < 8) {
+        finalTop = rect.bottom + 8;
+      }
+      
+      setDropdownPosition({
+        top: finalTop,
+        right: finalRight
+      });
+    };
+
+    // Update position immediately
+    updatePosition();
+
+    // Listen to scroll on all scrollable parents
+    const scrollableParents = [];
+    let parent = buttonRefs.current[openDropdownId]?.parentElement;
+    while (parent && parent !== document.body) {
+      if (parent.scrollHeight > parent.clientHeight || parent.scrollWidth > parent.clientWidth) {
+        scrollableParents.push(parent);
+        parent.addEventListener('scroll', updatePosition, { passive: true });
+      }
+      parent = parent.parentElement;
+    }
+
+    window.addEventListener('scroll', updatePosition, { passive: true, capture: true });
+    window.addEventListener('resize', updatePosition);
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, { capture: true });
+      window.removeEventListener('resize', updatePosition);
+      scrollableParents.forEach(parent => {
+        parent.removeEventListener('scroll', updatePosition);
+      });
+    };
+  }, [openDropdownId]);
+
   const handleAddProduct = async () => {
     if (!form.name || !form.phone || !form.debt) {
-      alert("يرجى ملء كل الحقول");
+      showError("يرجى ملء كل الحقول");
       return;
     }
 
     const debtAmount = Number(form.debt);
-    const paymentAmountNum = Number(form.paymentAmount || 0); // مبلغ السداد
-    const remainingDebt = debtAmount - paymentAmountNum;
-
-    // إنشاء مستند الدين
-    const newDebtDoc = await addDoc(collection(db, "debts"), {
-      name: form.name,
-      phone: form.phone,
-      debt: remainingDebt > 0 ? remainingDebt : 0,
-      debtType: form.debtType,
-      debtDirection: form.debtDirection,
-      dateInput: form.dateInput,
-      date: new Date(),
-      shop: shop,
-      aslDebt: form.debt,
-    });
-
-    // ===== تسجيل السداد إذا موجود
-    if (paymentAmountNum > 0) {
-      // إنشاء مستند السداد وحفظ الـ id
-      const paymentDoc = await addDoc(collection(db, "debtsPayments"), {
-        name: form.name,
-        phone: form.phone,
-        paidAmount: paymentAmountNum,
-        previousDebt: debtAmount,
-        remainingDebt: remainingDebt > 0 ? remainingDebt : 0,
-        date: new Date(),
-        shop: shop,
-        source: form.paymentSource || "درج",
-        debtid: newDebtDoc.id, // ربط السداد بالدين الأصلي
-      });
-
-      // إذا مصدر السداد خزنة، تسجيله في dailyProfit مع ربطه بالسداد
-      if (form.paymentSource === "خزنة") {
-        const now = new Date();
-        await addDoc(collection(db, "dailyProfit"), {
-          createdAt: now,
-          date: `${String(now.getDate()).padStart(2, "0")}/${String(
-            now.getMonth() + 1
-          ).padStart(2, "0")}/${now.getFullYear()}`,
-          shop: shop,
-          totalSales: paymentAmountNum,
-          type: "سداد",
-          debtPaymentId: paymentDoc.id, // ربط هذا السجل بالسداد الأصلي
-        });
-      }
+    if (debtAmount <= 0) {
+      showError("المبلغ يجب أن يكون أكبر من صفر");
+      return;
     }
 
-    // إعادة ضبط الفورم والحالة
-    setForm({
-      name: "",
-      phone: "",
-      debt: "",
-      debtType: "",
-      debtDirection: "",
-      dateInput: "",
-      paymentAmount: "",
-      paymentSource: "درج",
-    });
-    setActive(false);
-    setDetailsPayments([]);
-    setDetailsAslDebt(0);
+    const paymentAmountNum = Number(form.paymentAmount || 0);
+    const remainingDebt = debtAmount - paymentAmountNum;
+
+    try {
+      // إنشاء مستند الدين
+      const newDebtDoc = await addDoc(collection(db, "debts"), {
+        name: form.name,
+        phone: form.phone,
+        debt: remainingDebt > 0 ? remainingDebt : 0,
+        debtType: form.debtType,
+        debtDirection: form.debtDirection,
+        dateInput: form.dateInput,
+        date: new Date(),
+        shop: shop,
+        aslDebt: form.debt,
+      });
+
+      // ===== تسجيل السداد إذا موجود
+      if (paymentAmountNum > 0) {
+        const paymentDoc = await addDoc(collection(db, "debtsPayments"), {
+          name: form.name,
+          phone: form.phone,
+          paidAmount: paymentAmountNum,
+          previousDebt: debtAmount,
+          remainingDebt: remainingDebt > 0 ? remainingDebt : 0,
+          date: new Date(),
+          shop: shop,
+          source: form.paymentSource || "درج",
+          debtid: newDebtDoc.id,
+        });
+
+        if (form.paymentSource === "خزنة") {
+          const now = new Date();
+          await addDoc(collection(db, "dailyProfit"), {
+            createdAt: now,
+            date: `${String(now.getDate()).padStart(2, "0")}/${String(
+              now.getMonth() + 1
+            ).padStart(2, "0")}/${now.getFullYear()}`,
+            shop: shop,
+            totalSales: paymentAmountNum,
+            type: "سداد",
+            debtPaymentId: paymentDoc.id,
+          });
+        }
+      }
+
+      success("تم إضافة العميل بنجاح");
+      setForm({
+        name: "",
+        phone: "",
+        debt: "",
+        debtType: "",
+        debtDirection: "",
+        dateInput: "",
+        paymentAmount: "",
+        paymentSource: "درج",
+      });
+      setActive(false);
+      setDetailsPayments([]);
+      setDetailsAslDebt(0);
+    } catch (error) {
+      console.error("خطأ أثناء الإضافة:", error);
+      showError("حدث خطأ أثناء إضافة العميل");
+    }
   };
 
-  const handleDelete = async (id, phone) => {
-    try {
-      // ===== جلب كل السدادات الخاصة بالعميل =====
-      const paymentsQuery = query(
-        collection(db, "debtsPayments"),
-        where("phone", "==", phone),
-        where("shop", "==", shop)
-      );
-      const paymentsSnapshot = await getDocs(paymentsQuery);
+  const handleDeleteSingle = (id) => {
+    setSelectedIds(new Set([id]));
+    setShowDeleteConfirm(true);
+  };
 
-      // ===== حذف كل السدادات مع تحديث dailyProfit إذا السداد من الخزنة =====
-      const deletePaymentsPromises = paymentsSnapshot.docs.map(
-        async (docSnap) => {
+  const handleDeleteSelected = () => {
+    if (selectedIds.size === 0) {
+      showError("يرجى تحديد عميل واحد على الأقل للحذف");
+      return;
+    }
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const selectedArray = Array.from(selectedIds);
+      const batch = writeBatch(db);
+
+      for (const id of selectedArray) {
+        const customer = customers.find((c) => c.id === id);
+        if (!customer) continue;
+
+        // جلب كل السدادات الخاصة بالعميل
+        const paymentsQuery = query(
+          collection(db, "debtsPayments"),
+          where("phone", "==", customer.phone),
+          where("shop", "==", shop)
+        );
+        const paymentsSnapshot = await getDocs(paymentsQuery);
+
+        // حذف كل السدادات مع تحديث dailyProfit إذا السداد من الخزنة
+        for (const docSnap of paymentsSnapshot.docs) {
           const paymentData = docSnap.data();
 
-          // إذا السداد من الخزنة، حذف السجل المرتبط في dailyProfit
           if (paymentData.source === "خزنة") {
             const profitQuery = query(
               collection(db, "dailyProfit"),
               where("debtPaymentId", "==", docSnap.id)
             );
             const profitSnapshot = await getDocs(profitQuery);
-            const deleteProfitPromises = profitSnapshot.docs.map((pDoc) =>
-              deleteDoc(pDoc.ref)
-            );
-            await Promise.all(deleteProfitPromises);
+            profitSnapshot.docs.forEach((pDoc) => {
+              batch.delete(pDoc.ref);
+            });
           }
 
-          // حذف السداد نفسه
-          await deleteDoc(docSnap.ref);
+          batch.delete(docSnap.ref);
         }
+
+        // حذف الدين نفسه
+        batch.delete(doc(db, "debts", id));
+      }
+
+      await batch.commit();
+      success(
+        selectedArray.length === 1
+          ? "تم حذف العميل وكل السدادات المرتبطة به بنجاح"
+          : `تم حذف ${selectedArray.length} عميل وكل السدادات المرتبطة بهم بنجاح`
       );
-
-      await Promise.all(deletePaymentsPromises);
-
-      // ===== حذف الدين نفسه =====
-      await deleteDoc(doc(db, "debts", id));
-
-      alert(
-        "✅ تم حذف العميل وكل السدادات المرتبطة به، وتم تحديث dailyProfit إذا لزم الأمر"
-      );
+      setSelectedIds(new Set());
     } catch (err) {
       console.error(err);
-      alert("❌ حدث خطأ أثناء الحذف");
+      showError("حدث خطأ أثناء الحذف");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
-  const filteredCustomers = customers.filter((c) => {
-    if (!c.date) return false;
-
-    // حول الـ Timestamp لـ Date
-    const dateObj = c.date.toDate ? c.date.toDate() : new Date(c.date);
-
-    // استخرج اليوم والشهر والسنة
-    const day = String(dateObj.getDate()).padStart(2, "0");
-    const month = String(dateObj.getMonth() + 1).padStart(2, "0");
-    const year = dateObj.getFullYear();
-
-    // حولها لصيغة YYYY-MM-DD عشان متوافقة مع input type="date"
-    const dateStr = `${year}-${month}-${day}`;
-
-    // لو فيه تاريخ محدد في البحث
-    if (searchCode) {
-      return dateStr.includes(searchCode); // ابحث بالـ date فقط
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedIds(new Set(filteredCustomers.map((c) => c.id)));
     } else {
-      // بدون تاريخ، اعرض بس العملاء اللي عندهم دين > 0
-      return Number(c.debt || 0) > 0;
+      setSelectedIds(new Set());
     }
-  });
+  };
+
+  const handleSelectItem = (id, checked) => {
+    const newSelected = new Set(selectedIds);
+    if (checked) {
+      newSelected.add(id);
+    } else {
+      newSelected.delete(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const isAllSelected = filteredCustomers.length > 0 && selectedIds.size === filteredCustomers.length;
+  const isIndeterminate = selectedIds.size > 0 && selectedIds.size < filteredCustomers.length;
 
   // ===== Open payment modal
   const openPaymentModal = (customer) => {
     setPaymentCustomer(customer);
     setPaymentAmount("");
-    setPaymentSource("درج"); // default
+    setPaymentSource("درج");
     setShowPaymentModal(true);
   };
 
@@ -274,12 +474,68 @@ function Debts() {
     setProcessingPayment(false);
   };
 
+  // ===== Open increase modal
+  const openIncreaseModal = (customer) => {
+    setIncreaseCustomer(customer);
+    setIncreaseAmount("");
+    setShowIncreaseModal(true);
+  };
+
+  const closeIncreaseModal = () => {
+    setShowIncreaseModal(false);
+    setIncreaseCustomer(null);
+    setIncreaseAmount("");
+    setProcessingIncrease(false);
+  };
+
+  // ===== Confirm increase
+  const handleConfirmIncrease = async () => {
+    if (!increaseCustomer) return;
+    const amount = Number(increaseAmount);
+    if (!amount || amount <= 0 || isNaN(amount)) {
+      showError("الرجاء إدخال مبلغ صالح أكبر من صفر");
+      return;
+    }
+
+    setProcessingIncrease(true);
+
+    try {
+      const debtRef = doc(db, "debts", increaseCustomer.id);
+      const debtSnap = await getDoc(debtRef);
+
+      if (!debtSnap.exists()) {
+        showError("لم يتم العثور على بيانات الدين — ربما حُذف بالفعل.");
+        closeIncreaseModal();
+        return;
+      }
+
+      const debtData = debtSnap.data();
+      const currentDebt = Number(debtData.debt || 0);
+      const newDebt = currentDebt + amount;
+
+      // تحديث الدين في Firestore
+      await updateDoc(debtRef, { debt: newDebt });
+
+      // تحديث aslDebt إذا لم يكن موجودًا
+      if (!debtData.aslDebt) {
+        await updateDoc(debtRef, { aslDebt: currentDebt });
+      }
+
+      success(`تم زيادة الدين بنجاح. الدين الجديد: ${newDebt} EGP`);
+      closeIncreaseModal();
+    } catch (err) {
+      console.error("خطأ أثناء زيادة الدين:", err);
+      showError("حدث خطأ أثناء زيادة الدين، حاول مرة أخرى");
+      setProcessingIncrease(false);
+    }
+  };
+
   // ===== Confirm payment
   const handleConfirmPayment = async () => {
     if (!paymentCustomer) return;
     const paid = Number(paymentAmount);
     if (!paid || paid <= 0 || isNaN(paid)) {
-      alert("الرجاء إدخال مبلغ سداد صالح أكبر من صفر");
+      showError("الرجاء إدخال مبلغ سداد صالح أكبر من صفر");
       return;
     }
 
@@ -288,9 +544,9 @@ function Debts() {
     try {
       // ===== فحص رصيد الخزنة =====
       if (paymentSource === "خزنة") {
-        const treasuryBalance = await getTreasuryBalance(); // استدعاء دالة حساب الرصيد
+        const treasuryBalance = await getTreasuryBalance();
         if (paid > treasuryBalance) {
-          alert(
+          showError(
             `رصيد الخزنة الحالي (${treasuryBalance} EGP) أقل من المبلغ المطلوب سداده (${paid} EGP).`
           );
           setProcessingPayment(false);
@@ -302,7 +558,7 @@ function Debts() {
       const debtSnap = await getDoc(debtRef);
 
       if (!debtSnap.exists()) {
-        alert("لم يتم العثور على بيانات الدين — ربما حُذف بالفعل.");
+        showError("لم يتم العثور على بيانات الدين — ربما حُذف بالفعل.");
         setProcessingPayment(false);
         closePaymentModal();
         return;
@@ -311,7 +567,7 @@ function Debts() {
       const debtData = debtSnap.data();
       const previousDebt = Number(debtData.debt || 0);
       if (paid > previousDebt) {
-        alert(`المبلغ أكبر من الدين الحالي (${previousDebt} EGP).`);
+        showError(`المبلغ أكبر من الدين الحالي (${previousDebt} EGP).`);
         setProcessingPayment(false);
         return;
       }
@@ -320,13 +576,6 @@ function Debts() {
 
       // ===== تحديث الدين في Firestore =====
       await updateDoc(debtRef, { debt: remainingDebt });
-
-      // ===== تحديث الدين في state المحلي مباشرة =====
-      setCustomers((prev) =>
-        prev.map((c) =>
-          c.id === paymentCustomer.id ? { ...c, debt: remainingDebt } : c
-        )
-      );
 
       // ===== تسجيل السداد في debtsPayments =====
       const paymentDoc = await addDoc(collection(db, "debtsPayments"), {
@@ -339,10 +588,10 @@ function Debts() {
         date: new Date(),
         userName: localStorage.getItem("userName"),
         shop: shop,
-        source: paymentSource, // درج أو خزنة
+        source: paymentSource,
       });
 
-      // ===== إذا مصدر السداد خزنة، نسجل المبلغ في dailyProfit مع ربط السداد بالـ id =====
+      // ===== إذا مصدر السداد خزنة، نسجل المبلغ في dailyProfit =====
       if (paymentSource === "خزنة") {
         const now = new Date();
         await addDoc(collection(db, "dailyProfit"), {
@@ -353,15 +602,15 @@ function Debts() {
           shop: shop,
           totalSales: paid,
           type: "سداد",
-          debtPaymentId: paymentDoc.id, // ربط هذا السجل بالسداد الأصلي
+          debtPaymentId: paymentDoc.id,
         });
       }
 
-      alert("✅ تم تسجيل السداد بنجاح");
+      success("✅ تم تسجيل السداد بنجاح");
       closePaymentModal();
     } catch (err) {
       console.error("خطأ أثناء معالجة السداد:", err);
-      alert("❌ حدث خطأ أثناء معالجة السداد، حاول مرة أخرى");
+      showError("❌ حدث خطأ أثناء معالجة السداد، حاول مرة أخرى");
       setProcessingPayment(false);
     }
   };
@@ -370,11 +619,9 @@ function Debts() {
   const openDetailsPopup = async (customer) => {
     if (!customer) return;
 
-    // مسح بيانات السداد القديمة
     setDetailsPayments([]);
     setDetailsAslDebt(0);
 
-    // حفظ اصل الدين للعميل الجديد
     setDetailsAslDebt(customer.aslDebt || customer.debt || 0);
 
     const q = query(
@@ -387,10 +634,22 @@ function Debts() {
     setDetailsPayments(data);
     setShowDetailsPopup(true);
   };
+
   const closeDetailsPopup = () => {
     setDetailsPayments([]);
     setShowDetailsPopup(false);
   };
+
+  // حساب الإحصائيات
+  const totalDebts = useMemo(() => {
+    return filteredCustomers.reduce((acc, c) => acc + Number(c.debt || 0), 0);
+  }, [filteredCustomers]);
+
+  const totalPayments = useMemo(() => {
+    return detailsPayments.reduce((acc, p) => acc + Number(p.paidAmount || 0), 0);
+  }, [detailsPayments]);
+
+  const totalCustomers = filteredCustomers.length;
 
   if (loading) return <Loader />;
   if (!auth) return null;
@@ -399,313 +658,505 @@ function Debts() {
     <div className={styles.debts}>
       <SideBar />
       <div className={styles.content}>
-        <div className={styles.btns}>
-          <button onClick={() => setActive(false)}>كل العملاء</button>
-          <button onClick={() => setActive(true)}>اضف عميل جديد</button>
+        {/* Header */}
+        <div className={styles.header}>
+          <h2 className={styles.title}>فواتير البضاعة</h2>
+          <div className={styles.headerActions}>
+            {selectedIds.size > 0 && (
+              <button
+                onClick={handleDeleteSelected}
+                className={styles.deleteSelectedBtn}
+                disabled={isDeleting}
+              >
+                <FaRegTrashAlt />
+                حذف المحدد ({selectedIds.size})
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setActive(!active);
+                setForm({
+                  name: "",
+                  phone: "",
+                  debt: "",
+                  debtType: "",
+                  debtDirection: "",
+                  dateInput: "",
+                  paymentAmount: "",
+                  paymentSource: "درج",
+                });
+              }}
+              className={styles.addBtn}
+            >
+              {active ? "إلغاء" : "+ إضافة عميل"}
+            </button>
+          </div>
         </div>
 
-        {/* عرض العملاء */}
-        <div
-          className={styles.phoneContainer}
-          style={{ display: active ? "none" : "flex" }}
-        >
+        {/* Summary Cards */}
+        <div className={styles.summaryCards}>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>إجمالي العملاء</span>
+            <span className={styles.summaryValue}>{totalCustomers}</span>
+          </div>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>إجمالي الديون</span>
+            <span className={styles.summaryValue}>
+              {totalDebts.toFixed(2)} EGP
+            </span>
+          </div>
+        </div>
+
+        {/* Search Box */}
+        {!active && (
           <div className={styles.searchBox}>
-            <div className="inputContainer">
-              <label>
-                <CiSearch />
-              </label>
+            <div className={styles.searchContainer}>
+              <CiSearch className={styles.searchIcon} />
+              <input
+                type="text"
+                placeholder="ابحث بالاسم أو رقم الهاتف..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                className={styles.searchInput}
+              />
+            </div>
+            <div className={styles.dateContainer}>
               <input
                 type="date"
                 value={searchCode}
                 onChange={(e) => setSearchCode(e.target.value)}
+                className={styles.dateInput}
               />
             </div>
           </div>
+        )}
 
-          <div className={styles.tableContainer}>
-            <table>
+        {/* Form for adding new customer */}
+        {active && (
+          <div className={styles.addContainer}>
+            <div className={styles.inputBox}>
+              <div className="inputContainer">
+                <label>
+                  <MdDriveFileRenameOutline />
+                </label>
+                <input
+                  type="text"
+                  placeholder="اسم العميل"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className={styles.inputBox}>
+              <div className="inputContainer">
+                <label>
+                  <CiPhone />
+                </label>
+                <input
+                  type="text"
+                  placeholder="رقم الهاتف"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                />
+              </div>
+
+              <div className="inputContainer">
+                <label>
+                  <GiMoneyStack />
+                </label>
+                <input
+                  type="number"
+                  placeholder="الدين"
+                  value={form.debt}
+                  onChange={(e) => setForm({ ...form, debt: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className={styles.inputBox}>
+              <div className="inputContainer">
+                <input
+                  type="date"
+                  value={form.dateInput}
+                  onChange={(e) =>
+                    setForm({ ...form, dateInput: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="inputContainer">
+                <label>
+                  <GiMoneyStack />
+                </label>
+                <select
+                  value={form.debtDirection}
+                  onChange={(e) =>
+                    setForm({ ...form, debtDirection: e.target.value })
+                  }
+                >
+                  <option value="">اختر نوع الدين</option>
+                  <option value="ليك">ليك فلوس</option>
+                  <option value="بضاعة اجل">بضاعة اجل</option>
+                  <option value="بضاعة كاش">بضاعة كاش</option>
+                </select>
+              </div>
+            </div>
+            <div className={styles.inputBox}>
+              <div className="inputContainer">
+                <input
+                  type="number"
+                  placeholder="مبلغ السداد (اختياري)"
+                  value={form.paymentAmount || ""}
+                  onChange={(e) =>
+                    setForm({ ...form, paymentAmount: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="inputContainer">
+                <label>
+                  <GiMoneyStack />
+                </label>
+                <select
+                  value={form.paymentSource || "درج"}
+                  onChange={(e) =>
+                    setForm({ ...form, paymentSource: e.target.value })
+                  }
+                >
+                  <option value="خزنة">خزنة</option>
+                  <option value="درج">درج</option>
+                </select>
+              </div>
+            </div>
+            <div className={styles.actionButtonsContainer}>
+              <button className={styles.addBtn} onClick={handleAddProduct}>
+                إضافة العميل
+              </button>
+              <button
+                className={styles.cancelBtn}
+                onClick={() => {
+                  setActive(false);
+                  setForm({
+                    name: "",
+                    phone: "",
+                    debt: "",
+                    debtType: "",
+                    debtDirection: "",
+                    dateInput: "",
+                    paymentAmount: "",
+                    paymentSource: "درج",
+                  });
+                }}
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Table */}
+        {!active && (
+          <div className={styles.tableWrapper}>
+            <table className={styles.debtsTable}>
               <thead>
                 <tr>
+                  <th className={styles.checkboxCell}>
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      ref={(input) => {
+                        if (input) input.indeterminate = isIndeterminate;
+                      }}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className={styles.checkbox}
+                    />
+                  </th>
                   <th>الاسم</th>
                   <th>رقم الهاتف</th>
                   <th>الدين</th>
                   <th>الدين لمين</th>
                   <th>تاريخ الدين</th>
                   <th>تاريخ الإضافة</th>
-                  <th>سداد</th>
-                  <th>عرض التفاصيل</th>
-                  <th>حذف</th>
+                  <th>خيارات</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredCustomers.map((customer) => (
-                  <tr key={customer.id}>
-                    <td>{customer.name}</td>
-                    <td>{customer.phone}</td>
-                    <td>{customer.debt} EGP</td>
-                    <td>{customer.debtDirection}</td>
-                    <td>{customer.dateInput}</td>
-                    <td>
-                      {customer.date?.toDate().toLocaleDateString("ar-EG")}
-                    </td>
-                    <td>
-                      <button
-                        className={styles.payBtn}
-                        onClick={() => openPaymentModal(customer)}
-                      >
-                        سداد
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        onClick={() => openDetailsPopup(customer)}
-                        style={{ padding: "4px 8px", borderRadius: 6 }}
-                      >
-                        عرض
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        className={styles.delBtn}
-                        onClick={() => {
-                          const ok = confirm(
-                            "هل تريد حذف سجل هذا العميل وكل السدادات الخاصة به؟"
-                          );
-                          if (ok) handleDelete(customer.id, customer.phone);
-                        }}
-                      >
-                        <FaRegTrashAlt />
-                      </button>
+                {filteredCustomers.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className={styles.emptyCell}>
+                      <div className={styles.emptyState}>
+                        <p>❌ لا توجد عملاء</p>
+                      </div>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredCustomers.map((customer) => (
+                    <tr
+                      key={customer.id}
+                      className={selectedIds.has(customer.id) ? styles.selectedRow : ""}
+                    >
+                      <td className={styles.checkboxCell}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(customer.id)}
+                          onChange={(e) => handleSelectItem(customer.id, e.target.checked)}
+                          className={styles.checkbox}
+                        />
+                      </td>
+                      <td className={styles.nameCell}>{customer.name}</td>
+                      <td className={styles.phoneCell}>{customer.phone}</td>
+                      <td className={styles.debtCell}>
+                        {customer.debt} EGP
+                      </td>
+                      <td className={styles.directionCell}>{customer.debtDirection || "-"}</td>
+                      <td className={styles.dateInputCell}>{customer.dateInput || "-"}</td>
+                      <td className={styles.dateCell}>
+                        {customer.date?.toDate
+                          ? customer.date.toDate().toLocaleDateString("ar-EG")
+                          : "-"}
+                      </td>
+                      <td className={styles.actionsCell}>
+                        {/* Desktop Actions */}
+                        <div className={styles.actionButtons}>
+                          <button
+                            className={styles.payBtn}
+                            onClick={() => openPaymentModal(customer)}
+                            title="سداد"
+                          >
+                            سداد
+                          </button>
+                          <button
+                            className={styles.increaseBtn}
+                            onClick={() => openIncreaseModal(customer)}
+                            title="زيادة"
+                          >
+                            <FaPlus />
+                          </button>
+                          <button
+                            className={styles.detailsBtn}
+                            onClick={() => openDetailsPopup(customer)}
+                            title="عرض التفاصيل"
+                          >
+                            <FaEye />
+                          </button>
+                          <button
+                            className={styles.deleteBtn}
+                            onClick={() => handleDeleteSingle(customer.id)}
+                            disabled={isDeleting}
+                            title="حذف"
+                          >
+                            <FaRegTrashAlt />
+                          </button>
+                        </div>
+                        
+                        {/* Mobile Dropdown */}
+                        <div className={styles.mobileActions}>
+                          {(!openDropdownId || openDropdownId === customer.id) && (
+                            <button
+                              ref={(el) => {
+                                if (el) buttonRefs.current[customer.id] = el;
+                              }}
+                              className={styles.dropdownToggle}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const button = buttonRefs.current[customer.id];
+                              if (!button) return;
+                              
+                              const isOpening = openDropdownId !== customer.id;
+                              
+                              if (isOpening) {
+                                // Calculate position immediately
+                                const rect = button.getBoundingClientRect();
+                                const menuWidth = 240;
+                                const menuHeight = 200; // Approximate height
+                                
+                                // Calculate right position: align menu's right edge with button's right edge
+                                const rightPosition = window.innerWidth - rect.right;
+                                
+                                // Ensure menu doesn't go off screen on the left
+                                let finalRight = rightPosition;
+                                if (rect.right < menuWidth) {
+                                  finalRight = window.innerWidth - menuWidth - 8;
+                                }
+                                
+                                // Position menu above the button
+                                let finalTop = rect.top - menuHeight - 8;
+                                
+                                // If menu would go off screen at top, position it below button instead
+                                if (finalTop < 8) {
+                                  finalTop = rect.bottom + 8;
+                                }
+                                
+                                setDropdownPosition({
+                                  top: finalTop,
+                                  right: finalRight
+                                });
+                                
+                                // Open dropdown immediately
+                                setOpenDropdownId(customer.id);
+                              } else {
+                                // Close dropdown
+                                setOpenDropdownId(null);
+                              }
+                            }}
+                            title="خيارات"
+                          >
+                            <FaEllipsisVertical />
+                          </button>
+                          )}
+                          {openDropdownId === customer.id && (
+                            <>
+                              <div
+                                className={styles.dropdownOverlay}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenDropdownId(null);
+                                }}
+                                onTouchStart={(e) => {
+                                  e.stopPropagation();
+                                  setOpenDropdownId(null);
+                                }}
+                                onMouseDown={(e) => {
+                                  e.stopPropagation();
+                                }}
+                              />
+                              <div 
+                                className={styles.dropdownMenu}
+                                style={{
+                                  top: `${dropdownPosition.top}px`,
+                                  right: `${dropdownPosition.right}px`
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                onTouchStart={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onMouseEnter={(e) => e.stopPropagation()}
+                              >
+                                <button
+                                  className={styles.dropdownItem}
+                                  onClick={() => {
+                                    openPaymentModal(customer);
+                                    setOpenDropdownId(null);
+                                  }}
+                                >
+                                  <span className={styles.dropdownIcon}>
+                                    <GiMoneyStack />
+                                  </span>
+                                  سداد
+                                </button>
+                                <button
+                                  className={styles.dropdownItem}
+                                  onClick={() => {
+                                    openIncreaseModal(customer);
+                                    setOpenDropdownId(null);
+                                  }}
+                                >
+                                  <span className={styles.dropdownIcon}>
+                                    <FaPlus />
+                                  </span>
+                                  زيادة
+                                </button>
+                                <button
+                                  className={styles.dropdownItem}
+                                  onClick={() => {
+                                    openDetailsPopup(customer);
+                                    setOpenDropdownId(null);
+                                  }}
+                                >
+                                  <span className={styles.dropdownIcon}>
+                                    <FaEye />
+                                  </span>
+                                  عرض التفاصيل
+                                </button>
+                                <button
+                                  className={`${styles.dropdownItem} ${styles.dropdownItemDanger}`}
+                                  onClick={() => {
+                                    handleDeleteSingle(customer.id);
+                                    setOpenDropdownId(null);
+                                  }}
+                                  disabled={isDeleting}
+                                >
+                                  <span className={styles.dropdownIcon}>
+                                    <FaRegTrashAlt />
+                                  </span>
+                                  حذف
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-        </div>
-
-        {/* إضافة عميل */}
-        <div
-          className={styles.addContainer}
-          style={{ display: active ? "flex" : "none" }}
-        >
-          <div className={styles.inputBox}>
-            <div className="inputContainer">
-              <label>
-                <MdDriveFileRenameOutline />
-              </label>
-              <input
-                type="text"
-                placeholder="اسم العميل"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className={styles.inputBox}>
-            <div className="inputContainer">
-              <label>
-                <CiPhone />
-              </label>
-              <input
-                type="text"
-                placeholder="رقم الهاتف"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              />
-            </div>
-
-            <div className="inputContainer">
-              <label>
-                <GiMoneyStack />
-              </label>
-              <input
-                type="number"
-                placeholder="الدين"
-                value={form.debt}
-                onChange={(e) => setForm({ ...form, debt: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className={styles.inputBox}>
-            <div className="inputContainer">
-              <input
-                type="date"
-                value={form.dateInput}
-                onChange={(e) =>
-                  setForm({ ...form, dateInput: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="inputContainer">
-              <label>
-                <GiMoneyStack />
-              </label>
-              <select
-                value={form.debtDirection}
-                onChange={(e) =>
-                  setForm({ ...form, debtDirection: e.target.value })
-                }
-              >
-                <option value="ليك">ليك فلوس</option>
-                <option value="بضاعة اجل">بضاعة اجل</option>
-                <option value="بضاعة كاش">بضاعة كاش</option>
-              </select>
-            </div>
-          </div>
-          <div className={styles.inputBox}>
-            <div className="inputContainer">
-              <input
-                type="number"
-                placeholder="مبلغ السداد"
-                value={form.paymentAmount || ""}
-                onChange={(e) =>
-                  setForm({ ...form, paymentAmount: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="inputContainer">
-              <label>
-                <GiMoneyStack />
-              </label>
-              <select
-                value={form.paymentSource || "درج"}
-                onChange={(e) =>
-                  setForm({ ...form, paymentSource: e.target.value })
-                }
-              >
-                <option value="خزنة">خزنة</option>
-                <option value="درج">درج</option>
-              </select>
-            </div>
-          </div>
-          <button className={styles.addBtn} onClick={handleAddProduct}>
-            اضف العميل
-          </button>
-        </div>
+        )}
       </div>
 
-      {/* ===== Payment Modal ===== */}
+      {/* Payment Modal */}
       {showPaymentModal && paymentCustomer && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-          }}
-          onClick={closePaymentModal}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(520px, 96%)",
-              maxHeight: "90vh",
-              background: "#fff",
-              borderRadius: 12,
-              padding: 20,
-              boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
-              display: "flex",
-              flexDirection: "column",
-              gap: 12,
-              transform: processingPayment ? "scale(0.99)" : "scale(1)",
-              transition: "all 200ms ease",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h3 style={{ margin: 0 }}>سداد دين — {paymentCustomer.name}</h3>
-              <button
-                onClick={closePaymentModal}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  fontSize: 18,
-                  cursor: "pointer",
-                }}
-              >
-                ✖
+        <div className={styles.modalOverlay} onClick={closePaymentModal}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3>سداد دين — {paymentCustomer.name}</h3>
+              <button className={styles.closeBtn} onClick={closePaymentModal}>
+                ×
               </button>
             </div>
-
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={{ fontSize: 14, color: "#555" }}>
-                الدين الحالي: <strong>{paymentCustomer.debt} EGP</strong>
+            <div className={styles.modalContent}>
+              <div className={styles.modalInfo}>
+                <p>
+                  <strong>الدين الحالي:</strong> {paymentCustomer.debt} EGP
+                </p>
               </div>
-
-              <label style={{ fontSize: 13, color: "#333" }}>
-                المبلغ الذي سُدِّد (جنيه)
-              </label>
-              <input
-                type="number"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-                placeholder="اكتب المبلغ"
-                min="0"
-                style={{
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  border: "1px solid #ddd",
-                  outline: "none",
-                  width: "100%",
-                  boxSizing: "border-box",
-                }}
-              />
-
-              <label style={{ fontSize: 13, color: "#333" }}>مصدر السداد</label>
-              <select
-                value={paymentSource}
-                onChange={(e) => setPaymentSource(e.target.value)}
-                style={{ padding: "6px", borderRadius: 6 }}
-              >
-                <option value="درج">درج</option>
-                <option value="خزنة">خزنة</option>
-              </select>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  justifyContent: "flex-end",
-                  marginTop: 8,
-                }}
-              >
-                <button
-                  onClick={closePaymentModal}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: 8,
-                    border: "1px solid #ccc",
-                    background: "transparent",
-                    cursor: "pointer",
-                  }}
-                >
+              <div className={styles.inputBox}>
+                <div className="inputContainer">
+                  <label>
+                    <GiMoneyStack />
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="المبلغ الذي سُدِّد"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    min="0"
+                  />
+                </div>
+              </div>
+              <div className={styles.inputBox}>
+                <div className="inputContainer">
+                  <label>
+                    <GiMoneyStack />
+                  </label>
+                  <select
+                    value={paymentSource}
+                    onChange={(e) => setPaymentSource(e.target.value)}
+                  >
+                    <option value="درج">درج</option>
+                    <option value="خزنة">خزنة</option>
+                  </select>
+                </div>
+              </div>
+              {paymentAmount && (
+                <div className={styles.preview}>
+                  <p>
+                    المبلغ المتبقي بعد السداد:{" "}
+                    <strong>
+                      {Math.max(0, Number(paymentCustomer.debt || 0) - Number(paymentAmount || 0))} EGP
+                    </strong>
+                  </p>
+                </div>
+              )}
+              <div className={styles.modalActions}>
+                <button className={styles.cancelBtn} onClick={closePaymentModal}>
                   إلغاء
                 </button>
                 <button
+                  className={styles.confirmBtn}
                   onClick={handleConfirmPayment}
                   disabled={processingPayment}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: 8,
-                    border: "none",
-                    background: "#0b5ed7",
-                    color: "#fff",
-                    cursor: "pointer",
-                  }}
                 >
                   {processingPayment ? "جاري الحفظ..." : "تأكيد السداد"}
                 </button>
@@ -715,178 +1166,199 @@ function Debts() {
         </div>
       )}
 
-      {/* ===== Details Popup ===== */}
-      {showDetailsPopup && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-          }}
-          onClick={closeDetailsPopup}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(600px, 96%)",
-              maxHeight: "80vh",
-              background: "#fff",
-              borderRadius: 12,
-              padding: 20,
-              boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
-              display: "flex",
-              flexDirection: "column",
-              gap: 12,
-              overflowY: "auto",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h3 style={{ margin: 0 }}>تفاصيل السداد</h3>
-              <button
-                onClick={closeDetailsPopup}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  fontSize: 18,
-                  cursor: "pointer",
-                }}
-              >
-                ✖
+      {/* Increase Debt Modal */}
+      {showIncreaseModal && increaseCustomer && (
+        <div className={styles.modalOverlay} onClick={closeIncreaseModal}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3>زيادة دين — {increaseCustomer.name}</h3>
+              <button className={styles.closeBtn} onClick={closeIncreaseModal}>
+                ×
               </button>
             </div>
-            <h3>اصل الدين: {detailsAslDebt} EGP</h3>
-
-            {detailsPayments.length === 0 ? (
-              <p>لا توجد مدفوعات لهذا العميل.</p>
-            ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    <th>المستخدم</th>
-                    <th>المبلغ المدفوع</th>
-                    <th>المتبقي بعد السداد</th>
-                    <th>التاريخ</th>
-                    <th>مصدر السداد</th>
-                    <th>حذف</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detailsPayments.map((p) => (
-                    <tr key={p.id} style={{ borderTop: "1px solid #ddd" }}>
-                      <td>{p.userName} </td>
-                      <td>{p.paidAmount} EGP</td>
-                      <td>{p.remainingDebt} EGP</td>
-                      <td>
-                        {p.date?.toDate
-                          ? p.date.toDate().toLocaleDateString("ar-EG")
-                          : new Date(p.date).toLocaleDateString("ar-EG")}
-                      </td>
-                      <td>{p.source}</td>
-                      <td>
-                        <button
-                          onClick={async () => {
-                            const ok = confirm(
-                              "هل تريد حذف هذا السداد واسترجاع المبلغ للدين؟"
-                            );
-                            if (!ok) return;
-
-                            try {
-                              // احصل على بيانات السداد قبل الحذف
-                              const paymentRef = doc(db, "debtsPayments", p.id);
-                              const paymentSnap = await getDoc(paymentRef);
-                              if (!paymentSnap.exists()) {
-                                alert("السداد غير موجود");
-                                return;
-                              }
-                              const paymentData = paymentSnap.data();
-
-                              // حذف السداد من Firestore
-                              await deleteDoc(paymentRef);
-
-                              // استرجاع قيمة السداد إلى الدين الأصلي مباشرة باستخدام debtid
-                              const debtRef = doc(
-                                db,
-                                "debts",
-                                paymentData.debtid
-                              );
-                              const debtSnap = await getDoc(debtRef);
-
-                              if (debtSnap.exists()) {
-                                const currentDebt = Number(
-                                  debtSnap.data().debt || 0
-                                );
-                                const paidAmount = Number(
-                                  paymentData.paidAmount || 0
-                                );
-                                await updateDoc(debtRef, {
-                                  debt: currentDebt + paidAmount,
-                                });
-                              } else {
-                                alert("❌ الدين الأصلي غير موجود");
-                              }
-
-                              // إذا السداد كان من الخزنة، حذف السجل المرتبط في dailyProfit
-                              if (paymentData.source === "خزنة") {
-                                const profitQuery = query(
-                                  collection(db, "dailyProfit"),
-                                  where("debtPaymentId", "==", p.id)
-                                );
-                                const profitSnapshot = await getDocs(
-                                  profitQuery
-                                );
-                                const deleteProfitPromises =
-                                  profitSnapshot.docs.map((docSnap) =>
-                                    deleteDoc(docSnap.ref)
-                                  );
-                                await Promise.all(deleteProfitPromises);
-                              }
-
-                              // تحديث الحالة المحلية لإزالة الصف
-                              setDetailsPayments((prev) =>
-                                prev.filter((item) => item.id !== p.id)
-                              );
-
-                              alert(
-                                "✅ تم حذف السداد وإرجاع المبلغ للدين بنجاح"
-                              );
-                            } catch (err) {
-                              console.error(err);
-                              alert("❌ حدث خطأ أثناء الحذف");
-                            }
-                          }}
-                          style={{
-                            padding: "4px 8px",
-                            borderRadius: 6,
-                            background: "#ff4d4f",
-                            color: "#fff",
-                            border: "none",
-                            cursor: "pointer",
-                          }}
-                        >
-                          حذف
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            <div className={styles.modalContent}>
+              <div className={styles.modalInfo}>
+                <p>
+                  <strong>الدين الحالي:</strong> {increaseCustomer.debt} EGP
+                </p>
+              </div>
+              <div className={styles.inputBox}>
+                <div className="inputContainer">
+                  <label>
+                    <FaPlus />
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="المبلغ المراد إضافته"
+                    value={increaseAmount}
+                    onChange={(e) => setIncreaseAmount(e.target.value)}
+                    min="0"
+                  />
+                </div>
+              </div>
+              {increaseAmount && (
+                <div className={styles.preview}>
+                  <p>
+                    الدين الجديد:{" "}
+                    <strong>
+                      {Number(increaseCustomer.debt || 0) + Number(increaseAmount || 0)} EGP
+                    </strong>
+                  </p>
+                </div>
+              )}
+              <div className={styles.modalActions}>
+                <button className={styles.cancelBtn} onClick={closeIncreaseModal}>
+                  إلغاء
+                </button>
+                <button
+                  className={styles.confirmBtn}
+                  onClick={handleConfirmIncrease}
+                  disabled={processingIncrease}
+                >
+                  {processingIncrease ? "جاري الحفظ..." : "تأكيد الزيادة"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Details Popup */}
+      {showDetailsPopup && (
+        <div className={styles.modalOverlay} onClick={closeDetailsPopup}>
+          <div className={styles.detailsModal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3>تفاصيل السداد</h3>
+              <button className={styles.closeBtn} onClick={closeDetailsPopup}>
+                ×
+              </button>
+            </div>
+            <div className={styles.modalContent}>
+              <div className={styles.modalInfo}>
+                <p>
+                  <strong>أصل الدين:</strong> {detailsAslDebt} EGP
+                </p>
+              </div>
+              {detailsPayments.length === 0 ? (
+                <p className={styles.emptyText}>لا توجد مدفوعات لهذا العميل.</p>
+              ) : (
+                <div className={styles.detailsTableWrapper}>
+                  <table className={styles.detailsTable}>
+                    <thead>
+                      <tr>
+                        <th>المستخدم</th>
+                        <th>المبلغ المدفوع</th>
+                        <th>المتبقي بعد السداد</th>
+                        <th>التاريخ</th>
+                        <th>مصدر السداد</th>
+                        <th>حذف</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detailsPayments.map((p) => (
+                        <tr key={p.id}>
+                          <td>{p.userName || "-"}</td>
+                          <td>{p.paidAmount} EGP</td>
+                          <td>{p.remainingDebt} EGP</td>
+                          <td>
+                            {p.date?.toDate
+                              ? p.date.toDate().toLocaleDateString("ar-EG")
+                              : new Date(p.date).toLocaleDateString("ar-EG")}
+                          </td>
+                          <td>{p.source}</td>
+                          <td>
+                            <button
+                              className={styles.deletePaymentBtn}
+                              onClick={async () => {
+                                try {
+                                  const paymentRef = doc(db, "debtsPayments", p.id);
+                                  const paymentSnap = await getDoc(paymentRef);
+                                  if (!paymentSnap.exists()) {
+                                    showError("السداد غير موجود");
+                                    return;
+                                  }
+                                  const paymentData = paymentSnap.data();
+
+                                  await deleteDoc(paymentRef);
+
+                                  const debtRef = doc(db, "debts", paymentData.debtid);
+                                  const debtSnap = await getDoc(debtRef);
+
+                                  if (debtSnap.exists()) {
+                                    const currentDebt = Number(debtSnap.data().debt || 0);
+                                    const paidAmount = Number(paymentData.paidAmount || 0);
+                                    await updateDoc(debtRef, {
+                                      debt: currentDebt + paidAmount,
+                                    });
+                                  } else {
+                                    showError("❌ الدين الأصلي غير موجود");
+                                    return;
+                                  }
+
+                                  if (paymentData.source === "خزنة") {
+                                    const profitQuery = query(
+                                      collection(db, "dailyProfit"),
+                                      where("debtPaymentId", "==", p.id)
+                                    );
+                                    const profitSnapshot = await getDocs(profitQuery);
+                                    const deleteProfitPromises = profitSnapshot.docs.map((docSnap) =>
+                                      deleteDoc(docSnap.ref)
+                                    );
+                                    await Promise.all(deleteProfitPromises);
+                                  }
+
+                                  setDetailsPayments((prev) =>
+                                    prev.filter((item) => item.id !== p.id)
+                                  );
+
+                                  success("✅ تم حذف السداد وإرجاع المبلغ للدين بنجاح");
+                                } catch (err) {
+                                  console.error(err);
+                                  showError("❌ حدث خطأ أثناء الحذف");
+                                }
+                              }}
+                            >
+                              <FaRegTrashAlt />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          if (selectedIds.size === 1) {
+            setSelectedIds(new Set());
+          }
+        }}
+        title="تأكيد الحذف"
+        message={
+          selectedIds.size === 1
+            ? "هل تريد حذف سجل هذا العميل وكل السدادات الخاصة به؟"
+            : `هل تريد حذف ${selectedIds.size} عميل وكل السدادات الخاصة بهم؟`
+        }
+        onConfirm={confirmDelete}
+        confirmText="حذف"
+        cancelText="إلغاء"
+        type="danger"
+      />
     </div>
   );
 }
 
-export default Debts;
+export default function Debts() {
+  return (
+    <NotificationProvider>
+      <DebtsContent />
+    </NotificationProvider>
+  );
+}
