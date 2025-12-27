@@ -28,7 +28,10 @@ import VariantModal from "./Modals/VariantModal";
 import PriceModal from "./Modals/PriceModal";
 import ConfirmModal from "./Modals/ConfirmModal";
 import PasswordModal from "./Modals/PasswordModal";
+import SuspendInvoiceModal from "./Modals/SuspendInvoiceModal";
+import SuspendedInvoicesModal from "./Modals/SuspendedInvoicesModal";
 import { useInvoiceReturn } from "./hooks/useInvoiceReturn";
+import { FaBookmark, FaBook } from "react-icons/fa";
 
 function MainContent() {
   const { success, error: showError, warning } = useNotification();
@@ -50,6 +53,9 @@ function MainContent() {
   const [showCloseDayConfirm, setShowCloseDayConfirm] = useState(false);
   const [showDeleteInvoiceConfirm, setShowDeleteInvoiceConfirm] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [showSuspendedInvoicesModal, setShowSuspendedInvoicesModal] = useState(false);
+  const [suspendedInvoices, setSuspendedInvoices] = useState([]);
 
   const shop = typeof window !== "undefined" ? localStorage.getItem("shop") : "";
   const userName = typeof window !== "undefined" ? localStorage.getItem("userName") : "";
@@ -68,6 +74,30 @@ function MainContent() {
     [invoices, searchClient, filterInvoices]
   );
   const [searchCode, setSearchCode] = useState("");
+
+  // Load suspended invoices from localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = localStorage.getItem("suspendedInvoices");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setSuspendedInvoices(parsed || []);
+      }
+    } catch (error) {
+      console.error("Error loading suspended invoices:", error);
+    }
+  }, []);
+
+  // Save suspended invoices to localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem("suspendedInvoices", JSON.stringify(suspendedInvoices));
+    } catch (error) {
+      console.error("Error saving suspended invoices:", error);
+    }
+  }, [suspendedInvoices]);
 
   // Check user subscription
   useEffect(() => {
@@ -101,12 +131,15 @@ function MainContent() {
     if (!searchCode || !shop) return;
 
     const timer = setTimeout(() => {
+      const trimmedCode = searchCode.trim();
+      if (!trimmedCode) return;
+
       const foundProduct = products.find(
-        (p) => p.code?.toString() === searchCode.trim()
+        (p) => p.code?.toString() === trimmedCode
       );
       
       if (!foundProduct) {
-        setSearchCode("");
+        // لا نمسح الحقل إذا لم نجد منتج - نترك المستخدم يرى ما كتبه
         return;
       }
 
@@ -117,6 +150,8 @@ function MainContent() {
       if (hasVariants) {
         setVariantProduct(foundProduct);
         setShowVariantPopup(true);
+        // مسح الحقل بعد فتح الـ modal
+        setSearchCode("");
       } else {
         const alreadyInCart = cart.some(
           (item) =>
@@ -127,11 +162,14 @@ function MainContent() {
         if (!alreadyInCart) {
           setVariantProduct(foundProduct);
           setShowPricePopup(true);
+          // مسح الحقل بعد فتح الـ modal
+          setSearchCode("");
+        } else {
+          // المنتج موجود في السلة بالفعل - نمسح الحقل
+          setSearchCode("");
         }
       }
-
-      setSearchCode("");
-    }, CONFIG.SEARCH_DEBOUNCE);
+    }, 800); // زيادة وقت الـ debounce إلى 800ms لإعطاء المستخدم وقت لكتابة الرقم كاملاً
 
     return () => clearTimeout(timer);
   }, [searchCode, products, cart, shop]);
@@ -434,6 +472,79 @@ function MainContent() {
     await returnProduct(item, selectedInvoice.id, setSelectedInvoice);
   }, [selectedInvoice, returnProduct]);
 
+  // Handle suspend invoice
+  const handleSuspendInvoice = useCallback(async (clientName) => {
+    if (cart.length === 0) {
+      showError("السلة فارغة");
+      return;
+    }
+
+    const currentTotal = calculateFinalTotal(subtotal, appliedDiscount);
+    const suspendedInvoice = {
+      id: Date.now().toString(),
+      clientName,
+      items: JSON.parse(JSON.stringify(cart)), // Deep copy
+      subtotal,
+      profit,
+      total: currentTotal,
+      appliedDiscount,
+      createdAt: new Date().toISOString(),
+    };
+
+    setSuspendedInvoices((prev) => [...prev, suspendedInvoice]);
+    await clearCart();
+    setAppliedDiscount(0);
+    success(`✅ تم تعليق الفاتورة للعميل: ${clientName}`);
+    setShowSuspendModal(false);
+  }, [cart, subtotal, profit, appliedDiscount, clearCart, success, showError]);
+
+  // Handle restore suspended invoice
+  const handleRestoreInvoice = useCallback(async (index) => {
+    const invoice = suspendedInvoices[index];
+    if (!invoice) return;
+
+    // Clear current cart first
+    await clearCart();
+    setAppliedDiscount(0);
+
+    // Restore cart items
+    for (const item of invoice.items) {
+      await addToCart(
+        {
+          id: item.originalProductId,
+          name: item.name,
+          code: item.code,
+          sellPrice: item.sellPrice,
+          buyPrice: item.buyPrice,
+          finalPrice: item.finalPrice,
+        },
+        {
+          quantity: item.quantity,
+          price: item.sellPrice,
+          color: item.color,
+          size: item.size,
+        }
+      );
+    }
+
+    // Restore discount if any
+    if (invoice.appliedDiscount) {
+      setAppliedDiscount(invoice.appliedDiscount);
+    }
+
+    // Remove from suspended invoices
+    setSuspendedInvoices((prev) => prev.filter((_, i) => i !== index));
+    success(`✅ تم استعادة الفاتورة للعميل: ${invoice.clientName}`);
+    setShowSuspendedInvoicesModal(false);
+  }, [suspendedInvoices, addToCart, clearCart, success]);
+
+  // Handle delete suspended invoice
+  const handleDeleteSuspendedInvoice = useCallback((index) => {
+    const invoice = suspendedInvoices[index];
+    setSuspendedInvoices((prev) => prev.filter((_, i) => i !== index));
+    success(`✅ تم حذف الفاتورة المعلقة للعميل: ${invoice?.clientName || "غير معروف"}`);
+  }, [suspendedInvoices, success]);
+
   const finalTotal = calculateFinalTotal(subtotal, appliedDiscount);
 
   return (
@@ -452,6 +563,16 @@ function MainContent() {
           <div className={styles.headerActions}>
             <button className={styles.eyeBtn} onClick={toggleHidden} title={isHidden ? "إظهار" : "إخفاء"}>
               {isHidden ? <FaRegEye /> : <FaRegEyeSlash />}
+            </button>
+            <button
+              className={styles.suspendedInvoicesBtn}
+              onClick={() => setShowSuspendedInvoicesModal(true)}
+              title="الفواتير المعلقة"
+            >
+              <FaBookmark />
+              {suspendedInvoices.length > 0 && (
+                <span className={styles.badge}>{suspendedInvoices.length}</span>
+              )}
             </button>
             <button
               className={styles.sallesBtn}
@@ -490,6 +611,7 @@ function MainContent() {
         searchCode={searchCode}
         onSearchChange={setSearchCode}
         onDeleteInvoice={() => setShowDeleteInvoiceConfirm(true)}
+        onSuspendInvoice={() => setShowSuspendModal(true)}
         onAddToCart={handleAddToCart}
         onUpdateQuantity={handleQtyChange}
         onRemoveItem={handleRemoveFromCart}
@@ -527,6 +649,7 @@ function MainContent() {
         onClose={() => {
           setShowVariantPopup(false);
           setVariantProduct(null);
+          setSearchCode(""); // مسح الحقل عند إغلاق الـ modal
         }}
         product={variantProduct}
         onAddToCart={handleAddToCart}
@@ -540,6 +663,7 @@ function MainContent() {
         onClose={() => {
           setShowPricePopup(false);
           setVariantProduct(null);
+          setSearchCode(""); // مسح الحقل عند إغلاق الـ modal
         }}
         product={variantProduct}
         onAddToCart={handleAddToCart}
@@ -571,6 +695,20 @@ function MainContent() {
         onConfirm={handlePasswordConfirm}
         title="إظهار الأرقام"
         message="أدخل كلمة المرور لإظهار الأرقام"
+      />
+
+      <SuspendInvoiceModal
+        isOpen={showSuspendModal}
+        onClose={() => setShowSuspendModal(false)}
+        onConfirm={handleSuspendInvoice}
+      />
+
+      <SuspendedInvoicesModal
+        isOpen={showSuspendedInvoicesModal}
+        onClose={() => setShowSuspendedInvoicesModal(false)}
+        suspendedInvoices={suspendedInvoices}
+        onRestore={handleRestoreInvoice}
+        onDelete={handleDeleteSuspendedInvoice}
       />
     </div>
   );

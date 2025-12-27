@@ -1,5 +1,6 @@
 "use client";
 import styles from "./styles.module.css";
+import { FaBookmark } from "react-icons/fa";
 
 export default function CartSummary({
   subtotal,
@@ -7,6 +8,7 @@ export default function CartSummary({
   finalTotal,
   appliedDiscount,
   onOpenClientModal,
+  onSuspendInvoice,
   isSaving = false,
 }) {
   return (
@@ -22,6 +24,14 @@ export default function CartSummary({
         )}
       </div>
       <div className={styles.resetBtns}>
+        <button 
+          onClick={onSuspendInvoice} 
+          className={styles.suspendBtn}
+          disabled={isSaving}
+        >
+          <FaBookmark />
+          تعليق الفاتورة
+        </button>
         <button 
           onClick={onOpenClientModal} 
           className={styles.saveBtn}

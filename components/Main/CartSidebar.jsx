@@ -13,6 +13,7 @@ export default function CartSidebar({
   searchCode,
   onSearchChange,
   onDeleteInvoice,
+  onSuspendInvoice,
   onAddToCart,
   onUpdateQuantity,
   onRemoveItem,
@@ -86,6 +87,7 @@ export default function CartSidebar({
           finalTotal={finalTotal}
           appliedDiscount={appliedDiscount}
           onOpenClientModal={onOpenClientModal}
+          onSuspendInvoice={onSuspendInvoice}
           isSaving={isSaving}
         />
       </div>

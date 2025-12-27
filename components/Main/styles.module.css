@@ -144,6 +144,7 @@
   transition: all 0.3s ease;
   border: 1px solid var(--border-color);
   cursor: pointer;
+  position: relative;
 }
 
 .eyeBtn:hover {
@@ -151,6 +152,48 @@
   color: white;
   border-color: var(--main-color);
   transform: translateY(-2px);
+}
+
+.suspendedInvoicesBtn {
+  width: 50px;
+  height: 36px;
+  background-color: var(--surface-hover) !important;
+  color: var(--text-primary) !important;
+  font-size: 18px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.3s ease;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  position: relative;
+}
+
+.suspendedInvoicesBtn:hover {
+  background-color: var(--main-color);
+  color: white;
+  border-color: var(--main-color);
+  transform: translateY(-2px);
+}
+
+.badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #f44336;
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  border: 2px solid var(--surface);
+  box-shadow: var(--shadow-sm);
+  z-index: 10;
 }
 
 .closeDay,
@@ -675,6 +718,7 @@
 .resetBtns {
   width: 100%;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   gap: 12px;
@@ -698,7 +742,23 @@
   gap: 8px;
 }
 
-.resetBtns button:first-child {
+.suspendBtn {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+  color: white;
+}
+
+.suspendBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  background: linear-gradient(135deg, #f57c00, #e65100);
+}
+
+.suspendBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.resetBtns button:last-child {
   background: linear-gradient(
     135deg,
     var(--main-color),
@@ -707,7 +767,7 @@
   color: var(--text-on-primary);
 }
 
-.resetBtns button:first-child:hover {
+.resetBtns button:last-child:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
   background: linear-gradient(

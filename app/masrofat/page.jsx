@@ -161,7 +161,6 @@ function MasrofatContent() {
       (acc, item) => acc + Number(item.masrof || 0),
       0
     );
-    const availableAmount = dailySales - totalMasrofToday;
 
     if (masrofValue > availableAmount) {
       showError(
@@ -318,7 +317,6 @@ function MasrofatContent() {
     (acc, item) => acc + Number(item.masrof || 0),
     0
   );
-  const totalAvailable = dailySales - totalMasrof;
 
   if (loading) return <Loader />;
   if (!auth) return null;
@@ -358,21 +356,9 @@ function MasrofatContent() {
         {/* Summary Cards */}
         <div className={styles.summaryCards}>
           <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>إجمالي المبيعات</span>
-            <span className={styles.summaryValue}>
-              {dailySales.toFixed(2)} EGP
-            </span>
-          </div>
-          <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>إجمالي المصروفات</span>
             <span className={styles.summaryValue}>
               {totalMasrof.toFixed(2)} EGP
-            </span>
-          </div>
-          <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>الرصيد المتاح</span>
-            <span className={`${styles.summaryValue} ${totalAvailable >= 0 ? styles.positive : styles.negative}`}>
-              {totalAvailable.toFixed(2)} EGP
             </span>
           </div>
         </div>
