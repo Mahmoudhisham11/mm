@@ -1,38 +1,38 @@
 .products {
-  width: 100%;
-  min-height: 100vh;
-  display: flex;
-  justify-content: start;
-  align-items: start;
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    justify-content: start;
+    align-items: start;
   background-color: var(--background);
 }
 
 .content {
-  width: 100%;
+    width: 100%;
   padding: 24px;
   max-width: 1400px;
   margin: 0 auto;
 }
 
 .btns {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 15px;
-  padding: 30px 2%;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    padding: 30px 2%;
 }
 
 .tabBtn {
-  width: 50%;
+    width: 50%;
   max-width: 300px;
-  height: 50px;
+    height: 50px;
   font-size: 18px;
   background: var(--surface);
   color: var(--text-secondary);
   border: 2px solid var(--border-color);
   border-radius: 12px;
-  cursor: pointer;
+    cursor: pointer;
   transition: all 0.3s ease;
   font-weight: 600;
   box-shadow: var(--shadow-sm);
@@ -57,7 +57,7 @@
 }
 
 .totals {
-  width: 100%;
+    width: 100%;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 15px;
@@ -106,10 +106,10 @@
 }
 
 .menuHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
   gap: 16px;
   padding: 24px;
   background: var(--surface);
@@ -199,7 +199,7 @@
 }
 
 .searchInput {
-  width: 100%;
+    width: 100%;
   padding: 10px 16px;
   padding-right: 40px;
   font-size: 14px;
@@ -222,8 +222,8 @@
 }
 
 .addStockBtn {
-  display: flex;
-  align-items: center;
+    display: flex;
+    align-items: center;
   gap: 8px;
   padding: 10px 20px;
   font-size: 14px;
@@ -260,7 +260,7 @@
 
 .summaryCard {
   display: flex;
-  flex-direction: column;
+    flex-direction: column;
   gap: 8px;
   padding: 20px;
   background: var(--surface);
@@ -447,7 +447,7 @@
   transition: all 0.3s ease;
   z-index: 1000;
   pointer-events: none;
-}
+  }
 
 .colorTagContainer:hover .colorTooltip {
   opacity: 1;
@@ -524,21 +524,21 @@
 }
 
 .addContainer {
-  width: 100%;
-  padding: 0 2%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
+    width: 100%;
+    padding: 0 2%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
   gap: 20px;
 }
 
 .inputBox {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 15px;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
   flex-wrap: wrap;
 }
 
@@ -618,12 +618,12 @@
     var(--main-color),
     var(--main-color-hover)
   );
-  border: none;
-  font-size: 20px;
-  color: white;
+    border: none;
+    font-size: 20px;
+    color: white;
   border-radius: 12px;
-  cursor: pointer;
-  padding: 5px;
+    cursor: pointer;
+    padding: 5px;
   transition: all 0.3s ease;
   font-weight: 600;
   box-shadow: var(--shadow-md);
@@ -659,9 +659,9 @@
 }
 
 .actions {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .actionButtons {
@@ -673,13 +673,13 @@
 .actionBtn {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+    border-radius: 8px;
   font-size: 16px;
   border: 1px solid var(--border-color);
-  cursor: pointer;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   transition: all 0.2s ease;
   background: var(--surface-hover);
   color: var(--text-secondary);
@@ -701,7 +701,7 @@
 
 .actionBtn.deleteBtn:hover {
   background: var(--error);
-  color: white;
+    color: white;
   border-color: var(--error);
 }
 
@@ -717,7 +717,7 @@
     var(--main-color),
     var(--main-color-hover)
   );
-  color: white;
+    color: white;
   border: none;
   font-size: 24px;
   cursor: pointer;
@@ -736,11 +736,11 @@
 
 /* Modal Styles */
 .modalOverlay {
-  width: 100%;
-  height: 100vh;
-  position: fixed;
-  top: 0;
-  right: 0;
+    width: 100%;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    right: 0;
   left: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.6);
@@ -756,32 +756,32 @@
   background: rgba(0, 0, 0, 0.85);
 }
 
-.modal {
-  width: 90%;
+.modal { 
+    width: 90%; 
   max-width: 900px;
-  max-height: 90vh;
+    max-height: 90vh; 
   background: var(--surface);
   border-radius: 16px;
   box-shadow: var(--shadow-lg);
-  display: flex;
+    display: flex;
   justify-content: flex-start;
   align-items: stretch;
-  flex-direction: column;
+    flex-direction: column;
   animation: slideUp 0.3s ease;
   border: 1px solid var(--border-color);
   overflow: hidden;
 }
 
 .modalContent {
-  width: 100%;
+    width: 100%;
   padding: 24px;
-  overflow-y: auto;
-  flex: 1;
+    overflow-y: auto;
+    flex: 1;
   max-height: calc(90vh - 100px);
 }
 
-.modalHeader {
-  width: 100%;
+.modalHeader { 
+    width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -796,8 +796,8 @@
   color: var(--text-primary);
 }
 
-.sectionHeader {
-  width: 100%;
+.sectionHeader { 
+    width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -806,24 +806,24 @@
 }
 
 .modalSection {
-  width: 100%;
+    width: 100%;
 }
 
 .btnsPop {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 15px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
 }
 
-.grid {
+.grid { 
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 15px;
-  margin-top: 15px;
+    margin-top: 15px;
 }
 
-.gridItem {
+.gridItem { 
   border: 1px solid var(--border-color);
   padding: 16px;
   border-radius: 12px;
@@ -841,28 +841,28 @@
   transform: translateY(-2px);
 }
 
-.gridLabel {
+.gridLabel { 
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.gridControls {
+.gridControls { 
   display: flex;
   gap: 8px;
   align-items: center;
 }
 
 .modalFooter {
-  width: 100%;
-  display: flex;
+    width: 100%;
+    display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 15px;
+    gap: 15px;
   padding-top: 20px;
   border-top: 2px solid var(--border-color);
 }
 
-.smallBtn {
+.smallBtn { 
   padding: 8px 14px;
   border-radius: 10px;
   border: 1px solid var(--border-color);
@@ -892,7 +892,7 @@
   color: white;
 }
 
-.btnPrimary {
+.btnPrimary { 
   background: linear-gradient(
     135deg,
     var(--main-color),
@@ -956,7 +956,7 @@
   padding: 12px;
 }
 
-.btnOutline {
+.btnOutline { 
   background: transparent;
   border: 2px solid var(--border-color);
   color: var(--text-primary);
@@ -974,7 +974,7 @@
   background: var(--surface-hover);
 }
 
-.closeBtn {
+.closeBtn { 
   background: transparent;
   border: none;
   font-size: 24px;
@@ -991,7 +991,7 @@
   transform: rotate(90deg);
 }
 
-.emptyState {
+.emptyState { 
   color: var(--text-tertiary);
   padding: 20px 0;
   text-align: center;
@@ -1226,9 +1226,9 @@
     font-size: 24px;
   }
 
-  .inputBox {
-    flex-direction: column;
-  }
+    .inputBox {
+        flex-direction: column;
+    }
 
   .summaryCards {
     grid-template-columns: 1fr;

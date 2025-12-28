@@ -360,8 +360,8 @@ body {
 
 .inputContainer label,
 .inputContainer svg {
-  font-size: 20px;
-  color: var(--main-color);
+    font-size: 20px;
+    color: var(--main-color);
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -600,5 +600,5 @@ tfoot {
   thead th {
     background: #2c2c2c !important;
     color: white !important;
-  }
+}
 }

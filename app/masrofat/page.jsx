@@ -129,7 +129,7 @@ function MasrofatContent() {
     };
 
     getTodaySales();
-  }, [shop, masrofatList, showError]);
+  }, [shop, showError]);
 
   // Filter by reason
   const filteredMasrofat = useMemo(() => {
@@ -151,6 +151,11 @@ function MasrofatContent() {
       return;
     }
 
+    if (!shop) {
+      showError("يرجى التأكد من اختيار المتجر");
+      return;
+    }
+
     const masrofValue = Number(masrof);
     if (masrofValue <= 0) {
       showError("المبلغ يجب أن يكون أكبر من صفر");
@@ -162,9 +167,12 @@ function MasrofatContent() {
       0
     );
 
+    // حساب الرصيد المتاح
+    const availableAmount = dailySales - totalMasrofToday;
+
     if (masrofValue > availableAmount) {
       showError(
-        `❌ الرصيد الحالي غير كافٍ لإضافة هذا المصروف.\nالرصيد المتاح: ${availableAmount}\nالمبلغ المطلوب: ${masrofValue}`
+        `❌ الرصيد الحالي غير كافٍ لإضافة هذا المصروف.\nالرصيد المتاح: ${availableAmount.toFixed(2)}\nالمبلغ المطلوب: ${masrofValue.toFixed(2)}`
       );
       return;
     }
@@ -228,7 +236,7 @@ function MasrofatContent() {
 
     if (newMasrof > availableAmount) {
       showError(
-        `❌ الرصيد الحالي غير كافٍ.\nالرصيد المتاح: ${availableAmount}\nالمبلغ المطلوب بعد التعديل: ${newMasrof}`
+        `❌ الرصيد الحالي غير كافٍ.\nالرصيد المتاح: ${availableAmount.toFixed(2)}\nالمبلغ المطلوب بعد التعديل: ${newMasrof.toFixed(2)}`
       );
       return;
     }

@@ -24,7 +24,7 @@ export default function RootLayout({ children }) {
       <body>
         <ThemeProvider>
           <NotificationProvider>
-            {children}
+        {children}
           </NotificationProvider>
         </ThemeProvider>
       </body>

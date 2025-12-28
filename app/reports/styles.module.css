@@ -1,19 +1,19 @@
 .reports {
-  width: 100%;
-  min-height: 100vh;
-  display: flex;
-  justify-content: start;
-  align-items: start;
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    justify-content: start;
+    align-items: start;
   background-color: var(--background);
 }
 
 .content {
-  width: 100%;
+    width: 100%;
   padding: 24px;
   max-width: 1400px;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
+    display: flex;
+    flex-direction: column;
   gap: 24px;
 }
 
@@ -45,8 +45,8 @@
 }
 
 .exportBtn {
-  display: flex;
-  align-items: center;
+    display: flex;
+    align-items: center;
   gap: 8px;
   padding: 12px 20px;
   background: var(--surface-hover);
@@ -73,8 +73,8 @@
 }
 
 .toggleBtn {
-  display: flex;
-  align-items: center;
+    display: flex;
+    align-items: center;
   gap: 8px;
   padding: 12px 20px;
   background: var(--surface-hover);
@@ -83,14 +83,14 @@
   border-radius: 10px;
   font-size: 15px;
   font-weight: 600;
-  cursor: pointer;
+    cursor: pointer;
   transition: all 0.3s ease;
   font-family: "Tajawal", sans-serif;
 }
 
 .toggleBtn:hover {
   background: var(--main-color);
-  color: white;
+    color: white;
   border-color: var(--main-color);
   transform: translateY(-2px);
 }
@@ -161,7 +161,7 @@
 
 .dateInput,
 .searchInput {
-  width: 100%;
+    width: 100%;
   padding: 12px 16px;
   font-size: 15px;
   font-family: "Tajawal", sans-serif;
@@ -191,8 +191,8 @@
   border-radius: 16px;
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
+    display: flex;
+    align-items: center;
   gap: 12px;
 }
 
@@ -401,7 +401,7 @@
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: var(--shadow-sm);
-}
+  }
 
 .returnBtn:hover:not(:disabled) {
   transform: translateY(-2px) scale(1.05);
@@ -565,7 +565,7 @@
 @media screen and (max-width: 768px) {
   .content {
     padding: 16px;
-  }
+}
 
   .header {
     flex-direction: column;
@@ -575,12 +575,12 @@
   .headerActions {
     width: 100%;
     flex-direction: column;
-  }
+}
 
   .exportBtn,
   .toggleBtn {
     width: 100%;
-  }
+}
 
   .summaryCards {
     grid-template-columns: 1fr;
@@ -588,11 +588,11 @@
 
   .searchBox {
     flex-direction: column;
-  }
+}
 
   .inputContainer {
     width: 100%;
-  }
+}
 
   .reportsTable {
     min-width: 600px;
@@ -602,31 +602,31 @@
   .reportsTable td {
     padding: 12px 8px;
     font-size: 13px;
-  }
+    }
 
-  .invoiceSidebar {
-    width: 100%;
-    padding: 15px;
-    border-radius: 0;
-  }
+        .invoiceSidebar {
+        width: 100%;
+        padding: 15px;
+        border-radius: 0;
+    }
 
-  .sidebarInfo {
+    .sidebarInfo {
     padding: 12px 10px;
-    font-size: 14px;
-  }
+        font-size: 14px;
+    }
 
   .sidebarTable {
-    font-size: 12px;
+        font-size: 12px;
     min-width: 500px;
-  }
+    }
 
   .sidebarTable th,
   .sidebarTable td {
     padding: 8px 6px;
-  }
+    }
 
-  .returnBtn {
+    .returnBtn {
     padding: 6px 12px;
-    font-size: 12px;
-  }
+        font-size: 12px;
+    }
 }
