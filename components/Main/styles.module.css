@@ -131,6 +131,26 @@
    HEADER BUTTONS
    ============================================ */
 
+.connectionBtn {
+  width: 50px;
+  height: 36px;
+  background-color: var(--surface-hover) !important;
+  font-size: 18px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.3s ease;
+  border: 1px solid var(--border-color);
+  cursor: default;
+  position: relative;
+}
+
+.connectionBtn:hover {
+  transform: translateY(-2px);
+  opacity: 0.8;
+}
+
 .eyeBtn {
   width: 50px;
   height: 36px;

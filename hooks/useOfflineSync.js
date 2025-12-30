@@ -59,7 +59,7 @@ export function useOfflineSync() {
     const handleOffline = () => {
       setIsOnline(false);
       console.log("📴 Internet connection lost");
-      warning("⚠️ لا يوجد اتصال بالإنترنت - سيتم حفظ التغييرات محلياً");
+      // لا نعرض إشعار - فقط نحدث الحالة
     };
 
     // Listen to online/offline events

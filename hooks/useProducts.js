@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/app/firebase";
 
@@ -19,9 +19,16 @@ export function useProducts(shop) {
       where("shop", "==", shop)
     );
 
+    // استخدام includeMetadataChanges: false لتحسين الأداء offline
     const unsubscribe = onSnapshot(
       q,
+      {
+        includeMetadataChanges: false, // تحسين الأداء - لا نستمع للتغييرات في metadata
+      },
       (snapshot) => {
+        // استخدام metadata للتحقق من مصدر البيانات
+        const isFromCache = snapshot.metadata.fromCache;
+        
         const data = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
@@ -30,6 +37,13 @@ export function useProducts(shop) {
         setProducts(data);
         setError(null);
         setLoading(false);
+        
+        // Log للتحقق من مصدر البيانات
+        if (isFromCache) {
+          console.log("📦 Products loaded from cache (offline)");
+        } else {
+          console.log("🌐 Products loaded from server (online)");
+        }
       },
       (err) => {
         console.error("Error fetching products:", err);
@@ -41,7 +55,8 @@ export function useProducts(shop) {
     return () => unsubscribe();
   }, [shop]);
 
-  const filterProducts = (searchCode, filterType = "all") => {
+  // استخدام useMemo لتحسين الأداء
+  const filterProducts = useCallback((searchCode, filterType = "all") => {
     return products.filter((p) => {
       const search = searchCode.trim().toLowerCase();
       const matchName =
@@ -55,7 +70,7 @@ export function useProducts(shop) {
           : p.type !== "phone";
       return matchName && matchType;
     });
-  };
+  }, [products]);
 
   return {
     products,

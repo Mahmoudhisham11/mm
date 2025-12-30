@@ -1,7 +1,7 @@
 import "./globals.css";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
-import OnlineStatus from "@/components/OnlineStatus";
+import PreCacheProvider from "@/components/PreCacheProvider";
 
 export const metadata = {
   title: "Double M",
@@ -27,7 +27,7 @@ export default function RootLayout({ children }) {
       <body>
         <ThemeProvider>
           <NotificationProvider>
-            <OnlineStatus />
+            <PreCacheProvider />
             {children}
           </NotificationProvider>
         </ThemeProvider>

@@ -25,6 +25,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
+import { offlineAdd, offlineDelete, offlineUpdate } from "@/utils/firebaseOffline";
 import Loader from "@/components/Loader/Loader";
 import {
   NotificationProvider,
@@ -404,8 +405,7 @@ function ProductsContent() {
         // الكمية اللي تتحسب في التقارير
         const deletedQty = Number(product.quantity || 1);
 
-        // 1. تخزين المنتج في deletedProducts
-        await addDoc(collection(db, "deletedProducts"), {
+        const deletedProductData = {
           name: product.name,
           buyPrice: Number(product.buyPrice) || 0,
           sellPrice: Number(product.sellPrice) || 0,
@@ -414,12 +414,22 @@ function ProductsContent() {
           code: product.code || "",
           type: product.type || "",
           deletedAt: new Date(),
-        });
+        };
 
-        // 2. حذف المنتج من lacosteProducts
-        await deleteDoc(doc(db, "lacosteProducts", product.id));
+        // 1. تخزين المنتج في deletedProducts (مع دعم offline)
+        const addResult = await offlineAdd("deletedProducts", deletedProductData);
+        
+        // 2. حذف المنتج من lacosteProducts (مع دعم offline)
+        const deleteResult = await offlineDelete("lacosteProducts", product.id);
 
-        success("تم حذف المنتج وحفظه في السجل بنجاح");
+        // ✅ تحديث الـ state محلياً فوراً (لتحسين UX)
+        setProducts((prev) => prev.filter((p) => p.id !== product.id));
+
+        if (deleteResult.offline || addResult.offline) {
+          success("تم حذف المنتج (سيتم المزامنة عند الاتصال بالإنترنت)");
+        } else {
+          success("تم حذف المنتج وحفظه في السجل بنجاح");
+        }
       } catch (e) {
         console.error("Error deleting product:", e);
         showError(`حدث خطأ أثناء الحذف: ${e.message || "خطأ غير معروف"}`);
@@ -916,8 +926,8 @@ function ProductsContent() {
     }
 
     try {
-      // 1) إضافة المحذوف إلى deletedProducts مع تفصيل الكميات وقيمتها
-      await addDoc(collection(db, "deletedProducts"), {
+      // 1) إضافة المحذوف إلى deletedProducts مع تفصيل الكميات وقيمتها (مع دعم offline)
+      const deletedProductData = {
         ...deleteTarget,
         deletedParts: deletedList,
         deletedTotalQty,
@@ -925,7 +935,8 @@ function ProductsContent() {
         deletedAt: Timestamp.now(),
         originalId: deleteTarget.id,
         shop,
-      });
+      };
+      const addResult = await offlineAdd("deletedProducts", deletedProductData);
 
       // 2) تعديل المنتج الأصلي
       let updatedColors = deleteTarget.colors.map((c) => ({
@@ -950,11 +961,11 @@ function ProductsContent() {
         }))
         .filter((c) => c.sizes.length > 0);
 
-      const productRef = doc(db, "lacosteProducts", deleteTarget.id);
-
+      // ✅ تحديث الـ state محلياً فوراً (لتحسين UX)
       if (updatedColors.length === 0) {
         // حذف المنتج بالكامل
-        await deleteDoc(productRef);
+        const deleteResult = await offlineDelete("lacosteProducts", deleteTarget.id);
+        setProducts((prev) => prev.filter((p) => p.id !== deleteTarget.id));
       } else {
         // إعادة حساب الكمية الإجمالية
         const newQuantity = updatedColors.reduce(
@@ -962,11 +973,20 @@ function ProductsContent() {
           0
         );
 
-        // تحديث المنتج
-        await updateDoc(productRef, {
+        // تحديث المنتج (مع دعم offline)
+        await offlineUpdate("lacosteProducts", deleteTarget.id, {
           colors: updatedColors,
           quantity: newQuantity,
         });
+
+        // تحديث الـ state محلياً
+        setProducts((prev) =>
+          prev.map((p) =>
+            p.id === deleteTarget.id
+              ? { ...p, colors: updatedColors, quantity: newQuantity }
+              : p
+          )
+        );
       }
 
       // تنظيف الواجهة
@@ -975,11 +995,18 @@ function ProductsContent() {
       setDeleteForm([]);
 
       // اختياري: إظهار ملخص للمستخدم
-      success(
-        `تم حذف ${deletedTotalQty} قطعة (قيمة تقريبية: ${deletedTotalValue.toFixed(
-          2
-        )} EGP كقيمة شراء)`
-      );
+      const isOffline = addResult.offline;
+      if (isOffline) {
+        success(
+          `تم حذف ${deletedTotalQty} قطعة (سيتم المزامنة عند الاتصال بالإنترنت)`
+        );
+      } else {
+        success(
+          `تم حذف ${deletedTotalQty} قطعة (قيمة تقريبية: ${deletedTotalValue.toFixed(
+            2
+          )} EGP كقيمة شراء)`
+        );
+      }
     } catch (err) {
       console.error("خطأ أثناء عملية الحذف الجزئي:", err);
       showError(`حدث خطأ أثناء حذف العناصر: ${err.message || "خطأ غير معروف"}`);

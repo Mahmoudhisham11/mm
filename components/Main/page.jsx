@@ -4,6 +4,8 @@ import SideBar from "../SideBar/page";
 import styles from "./styles.module.css";
 import { FaBars } from "react-icons/fa6";
 import { FaRegEye, FaRegEyeSlash } from "react-icons/fa";
+import { FaWifi } from "react-icons/fa";
+import { FaSatellite } from "react-icons/fa";
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
 import { getAvailableQuantity } from "@/utils/productHelpers";
 import { db } from "@/app/firebase";
@@ -33,6 +35,7 @@ import SuspendedInvoicesModal from "./Modals/SuspendedInvoicesModal";
 import EmployeeStatsModal from "./Modals/EmployeeStatsModal";
 import { useInvoiceReturn } from "./hooks/useInvoiceReturn";
 import { FaBookmark, FaBook } from "react-icons/fa";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
 
 function MainContent() {
   const { success, error: showError, warning } = useNotification();
@@ -70,6 +73,7 @@ function MainContent() {
   const { employees } = useEmployees(shop);
   const { totalMasrofat } = useMasrofat(shop);
   const { returnProduct, returningItemsState } = useInvoiceReturn();
+  const { isOnline } = useOfflineSync();
 
   // Filtered data - using useMemo for performance
   const filteredInvoices = useMemo(
@@ -624,6 +628,16 @@ function MainContent() {
           </div>
 
           <div className={styles.headerActions}>
+            <button 
+              className={styles.connectionBtn} 
+              title={isOnline ? "متصل بالإنترنت" : "غير متصل - وضع Offline"}
+              style={{ 
+                color: isOnline ? "#4CAF50" : "#FF9800",
+                cursor: "default"
+              }}
+            >
+              {isOnline ? <FaWifi /> : <FaSatellite />}
+            </button>
             <button className={styles.eyeBtn} onClick={toggleHidden} title={isHidden ? "إظهار" : "إخفاء"}>
               {isHidden ? <FaRegEye /> : <FaRegEyeSlash />}
             </button>
