@@ -3,8 +3,14 @@ import withPWA from "next-pwa";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     images: {
-        domains: ['firebasestorage.googleapis.com']
-    }
+        remotePatterns: [
+            {
+                protocol: 'https',
+                hostname: 'firebasestorage.googleapis.com',
+                pathname: '/**',
+            },
+        ],
+    },
 };
 
 const pwaConfig = withPWA({
@@ -149,4 +155,8 @@ const pwaConfig = withPWA({
     ],
 });
 
-export default pwaConfig(nextConfig);
+// تطبيق PWA config ثم إضافة turbopack بعد التطبيق
+const config = pwaConfig(nextConfig);
+config.turbopack = {}; // إضافة turbopack بعد تطبيق withPWA لضمان تمريره بشكل صحيح
+
+export default config;
