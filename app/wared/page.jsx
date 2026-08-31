@@ -39,7 +39,7 @@ function WaredContent() {
       collection(db, "wared"),
       where("shop", "==", shop)
     );
-
+    
     const unsub = onSnapshot(
       colRef,
       (snapshot) => {
